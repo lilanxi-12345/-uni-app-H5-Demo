@@ -1,0 +1,366 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'select-mode' ? 'steps-item-on' : ''" @click="goStep(s.key, 'select-mode')">
+					<text class="steps-label" :class="s.key == 'select-mode' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 页头 ============ -->
+			<text class="accent-txt" @click="goHome">← 返回首页</text>
+			<text class="h1 mt12">选择你的采集模式</text>
+			<text class="muted mt8">两种模式都会生成同一套 8 字段数字人画像，区别在于采集深度与耗时</text>
+
+			<!-- ============ 三个大键：快速建模 / 深度建模 / 开始建模 ============ -->
+			<view class="mode-big-wrap">
+				<view
+					v-for="item in modes"
+					:key="item.key"
+					class="mode-big"
+					:class="[(item.key == 'quick' ? 'mode-big-quick' : 'mode-big-deep'), (mode == item.key ? 'mode-big-on' : '')]"
+					@click="selectMode(item.key)"
+				>
+					<view class="row-between">
+						<text class="mode-big-name">{{ item.name }}</text>
+						<view class="mode-radio" :class="{ 'mode-radio-on': mode == item.key }">
+							<text v-if="mode == item.key" class="mode-tick">✓</text>
+						</view>
+					</view>
+					<text class="mode-big-time">{{ item.time }}</text>
+					<text class="mode-big-desc">{{ item.brief }}</text>
+				</view>
+			</view>
+
+			<!-- 第三个大键：开始建模（选完模式才亮起） -->
+			<view class="btn btn-primary btn-block mode-start" :class="{ 'btn-disabled': mode == '' }" @click="startCollect">
+				<text class="label-dark">{{ startText }}</text>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">先选快速或深度，再点「开始建模」。两种模式都会生成同一套 8 字段数字人画像。</text>
+			</view>
+		</view>
+
+
+		<!-- ============ 隐私告知弹窗（与网页版一致：未同意时在本页确认后再进第三步） ============ -->
+		<view v-if="showPrivacy" class="mask">
+			<view class="modal">
+				<text class="h2">隐私告知与数据使用说明</text>
+				<text class="muted mt8">开始采集前，请阅读并确认以下内容</text>
+				<view v-for="(item, index) in privacyItems" :key="index" class="modal-item">
+					<view class="modal-index"><text class="sm-index-text">{{ index + 1 }}</text></view>
+					<text class="t-md sm-privacy-text">{{ item }}</text>
+				</view>
+				<view class="agree-row" @click="privacyChecked = !privacyChecked">
+					<view class="checkbox" :class="{ 'checkbox-on': privacyChecked }">
+						<text v-if="privacyChecked" class="sm-tick">✓</text>
+					</view>
+					<text class="t-sm sm-agree-text">我已阅读并同意上述告知，同意本次采集数据用于生成本人的数字人人设与组队模拟</text>
+				</view>
+				<view class="row mt24">
+					<view class="btn btn-ghost sm-modal-btn" @click="showPrivacy = false">
+						<text class="label-light">暂不同意</text>
+					</view>
+					<view class="btn btn-primary sm-modal-btn" @click="agreeAndGo">
+						<text class="label-dark">同意并继续</text>
+					</view>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 采集模式选择页
+	 * 交互：点击卡片切换选中 → 底部操作条联动 → 携带 mode 参数进入量表页
+	 * 说明：mode 同时写入本地存储，后续页面统一从存储读取
+	 */
+	import { STORAGE_MODE, STORAGE_PRIVACY, setStore, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+
+	// 模式配置（与首页保持一致的口径）
+	const modes = [
+		{
+			key: 'quick', name: '快速建模', tag: '现场演示首选', time: '约 5 分钟',
+			desc: '用最短流程拿到一份可用的数字人人设，适合在答辩现场完整跑通一次组队演示。',
+			brief: 'TIPI-10 量表（10 题）+ 组队偏好（6 题）+ 5 轮固定情景对话',
+			items: [
+				{ name: '人格量表', value: 'TIPI-10（10 题）' },
+				{ name: '组队偏好题', value: '6 题' },
+				{ name: '对话采集', value: '5 轮固定情景对话' },
+				{ name: '预计耗时', value: '约 5 分钟' }
+			],
+			flow: ['人格量表', '组队偏好', '情景对话', '生成画像'],
+			scene: '答辩现场演示、临时体验，或只想先快速看到匹配结果的同学。'
+		},
+		{
+			key: 'deep', name: '深度建模', tag: '画像最细腻', time: '约 30 分钟',
+			desc: '完整人格量表搭配价值观题目与开放式自由对话，语言风格样本更充分，适配度预测更可靠。',
+			brief: 'BFI-44 量表（44 题）+ 价值观（8 题）+ 开放式自由对话',
+			items: [
+				{ name: '人格量表', value: 'BFI-44（44 题）' },
+				{ name: '价值观题目', value: '8 题' },
+				{ name: '对话采集', value: '开放式自由对话' },
+				{ name: '预计耗时', value: '约 30 分钟' }
+			],
+			flow: ['完整量表', '价值观题目', '自由对话', '生成画像'],
+			scene: '正式组队前认真建档，希望被推荐到更合适队友的同学。'
+		}
+	]
+
+	// 8 字段画像说明
+	const fields = [
+		{ icon: '🧠', name: '大五人格', desc: '责任心、开放性、外向性、宜人性、情绪稳定性' },
+		{ icon: '🧭', name: '组队角色', desc: '领导者、协调者、执行者、创意者等角色偏好' },
+		{ icon: '💬', name: '沟通风格', desc: '直接或委婉、反馈频率、冲突处理方式' },
+		{ icon: '⏰', name: '可用时间', desc: '每周可投入的时段与时长' },
+		{ icon: '🛠', name: '技能标签', desc: '编程、设计、文档、答辩等能力标签' },
+		{ icon: '⛔', name: '底线雷点', desc: '不能接受的行为与合作红线' },
+		{ icon: '🗣', name: '说话样本', desc: '采集到的语言风格片段，供数字人模仿' },
+		{ icon: '📌', name: '记忆锚点', desc: '关键经历与偏好，让数字人「记得你」' }
+	]
+
+	// 初始不预选：必须先在本页点「快速建模」或「深度建模」，「开始建模」才会亮起
+	const mode = ref('')
+
+	// 隐私告知弹窗（与网页版一致：点「开始」时若未同意则先弹窗，同意后进入第三步）
+	const showPrivacy = ref(false)
+	const privacyChecked = ref(false)
+	const privacyItems : string[] = [
+		'采集内容：你的量表作答结果、组队偏好选择，以及对话采集环节的文本样本。',
+		'使用目的：仅用于生成属于你的数字人人设，并参与本次组队模拟与匹配演示。',
+		'存储位置：Demo 阶段全部数据仅保存在本机，不会上传服务器。',
+		'你的权利：可随时清除本机数据，清除后不影响继续体验。'
+	]
+
+	// 当前选中模式的配置
+	const current = computed(() : any => {
+		const key = mode.value
+		for (let i = 0; i < modes.length; i++) {
+			if (modes[i].key == key) {
+				return modes[i]
+			}
+		}
+		return { key: '', name: '采集模式', tag: '', time: '', brief: '', desc: '', items: [], flow: [], scene: '' }
+	})
+
+	// 第三个大键的文案：未选模式时提示先选择
+	const startText = computed(() : string => {
+		if (mode.value == '') {
+			return '请先选择采集模式'
+		}
+		return '开始' + current.value.name
+	})
+
+	// 切换选中模式
+	function selectMode(key : string) {
+		mode.value = key
+		setStore(STORAGE_MODE, key)
+	}
+
+	/**
+	 * 开始采集 → 跳到第三步「量表答题」，并按所选模式加载对应题库
+	 * quick：TIPI-10（10 题）+ 组队偏好（6 题）
+	 * deep ：BFI-44（44 题）+ 价值观（8 题）+ 组队偏好（6 题）
+	 * 与网页版一致：未同意隐私告知时先弹出告知弹窗，同意后立即进入第三步
+	 */
+	function startCollect() {
+		if (mode.value == '') {
+			uni.showToast({ title: '请先选择采集模式', icon: 'none' })
+			return
+		}
+		if (getStore(STORAGE_PRIVACY, '0') != '1') {
+			privacyChecked.value = false
+			showPrivacy.value = true
+			return
+		}
+		enterQuestion()
+	}
+
+	// 进入第三步量表页，携带所选模式（量表页据此加载对应题库）
+	function enterQuestion() {
+		setStore(STORAGE_MODE, mode.value)
+		uni.navigateTo({
+			url: '/pages/question/question?mode=' + mode.value
+		})
+	}
+
+	// 同意隐私告知后继续进入第三步
+	function agreeAndGo() {
+		if (!privacyChecked.value) {
+			uni.showToast({ title: '请先勾选同意后再继续', icon: 'none' })
+			return
+		}
+		setStore(STORAGE_PRIVACY, '1')
+		showPrivacy.value = false
+		enterQuestion()
+	}
+
+	function goHome() {
+		uni.reLaunch({ url: '/pages/index/index' })
+	}
+</script>
+
+<style>
+	/* ---------- 模式选择页专属样式 ---------- */
+	.mode-wrap {
+		flex-direction: row;
+		flex-wrap: wrap;
+		margin-top: 6px;
+	}
+
+	.mode-card {
+		width: 48%;
+		min-width: 300px;
+		margin-right: 2%;
+	}
+
+	.mode-quick { border-color: rgba(47, 123, 255, 0.5); }
+	.mode-deep { border-color: rgba(124, 92, 255, 0.5); }
+
+	/* 选中态：与网页版一致的蓝色光晕 */
+	.mode-active {
+		box-shadow: 0 22px 60px rgba(80, 120, 255, 0.3);
+	}
+	.mode-tag-text { font-size: 12px; color: #cfe0ff; }
+	.mode-time { margin-top: 6px; font-size: 14px; font-weight: bold; color: #4be0f0; }
+
+	.mode-radio {
+		width: 24px;
+		height: 24px;
+		border-radius: 12px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.32);
+		align-items: center;
+		justify-content: center;
+	}
+
+	.mode-radio-on {
+		background-color: #22d3ee;
+		border-color: #22d3ee;
+	}
+
+	.mode-tick { font-size: 13px; font-weight: bold; color: #04122b; }
+
+	/* ---------- 三个大键（快速 / 深度 / 开始建模） ---------- */
+	.mode-big-wrap {
+		margin-top: 16px;
+	}
+
+	.mode-big {
+		padding: 20px 22px;
+		border-radius: 16px;
+		margin-top: 12px;
+		background-color: rgba(255, 255, 255, 0.05);
+		border-width: 2px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.14);
+	}
+
+	.mode-big-quick { border-color: rgba(47, 123, 255, 0.45); }
+	.mode-big-deep { border-color: rgba(124, 92, 255, 0.45); }
+
+	.mode-big-on {
+		background-image: linear-gradient(120deg, rgba(47, 123, 255, 0.24), rgba(34, 211, 238, 0.16));
+		border-color: rgba(34, 211, 238, 0.85);
+		box-shadow: 0 12px 30px rgba(47, 123, 255, 0.28);
+	}
+
+	.mode-big-name { font-size: 22px; font-weight: bold; color: #f2f7ff; }
+	.mode-big-time { margin-top: 8px; font-size: 14px; font-weight: bold; color: #4be0f0; }
+	.mode-big-desc { margin-top: 8px; font-size: 13px; line-height: 20px; color: #a9b8d8; }
+
+	.mode-start {
+		margin-top: 18px;
+	}
+	.mode-block-title { font-size: 12px; color: #8697ba; }
+	.mode-value { font-size: 13px; font-weight: bold; color: #eef4ff; }
+
+	.mode-node {
+		padding: 5px 10px;
+		border-radius: 8px;
+		background-color: rgba(47, 123, 255, 0.16);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.32);
+	}
+
+	.mode-node-text { font-size: 12px; color: #cfe0ff; }
+
+	.mode-section-title {
+		margin-top: 30px;
+		font-size: 16px;
+		font-weight: bold;
+		color: #dfe8fb;
+	}
+
+	.mode-field-wrap {
+		flex-direction: row;
+		flex-wrap: wrap;
+		margin-top: 6px;
+	}
+
+	.mode-field {
+		width: 23%;
+		min-width: 170px;
+		margin-right: 2%;
+	}
+
+	.mode-field-icon { font-size: 22px; }
+
+	.mode-tip {
+		padding: 14px;
+		margin-bottom: 24px;
+		border-radius: 12px;
+		background-color: rgba(251, 191, 36, 0.1);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(251, 191, 36, 0.3);
+	}
+
+	.mode-tip-text { font-size: 13px; line-height: 20px; color: #e2cf9a; }
+
+	/* 顶部常驻操作条 */
+	.sm-topbar {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		padding: 18px 20px;
+		margin-top: 14px;
+		border-width: 2px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.65);
+		background-image: linear-gradient(120deg, rgba(47, 123, 255, 0.22), rgba(34, 211, 238, 0.16));
+		box-shadow: 0 12px 34px rgba(47, 123, 255, 0.28);
+	}
+
+	.sm-top-name { margin-top: 2px; font-size: 18px; font-weight: bold; color: #eef4ff; }
+
+	/* 隐私弹窗内的文字样式 */
+	.sm-index-text { font-size: 12px; font-weight: bold; color: #04122b; }
+	.sm-privacy-text { flex: 1; line-height: 22px; }
+	.sm-tick { font-size: 13px; font-weight: bold; color: #04122b; }
+	.sm-agree-text { flex: 1; line-height: 20px; }
+	.sm-modal-btn { flex: 1; margin-right: 10px; }
+</style>

@@ -1,0 +1,304 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'question' ? 'steps-item-on' : ''" @click="goStep(s.key, 'question')">
+					<text class="steps-label" :class="s.key == 'question' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 顶部进度 ============ -->
+			<view class="row-between">
+				<view class="row">
+					<view class="badge badge-blue"><text class="q-badge-text">{{ modeName }}</text></view>
+					<text class="t-md q-section-name">{{ currentQuestion.section }}</text>
+				</view>
+				<view class="row">
+					<text class="q-progress">第 {{ index + 1 }} / {{ total }} 题</text>
+					<text class="t-xs q-answered">已作答 {{ answered }} 题</text>
+				</view>
+			</view>
+			<view class="track">
+				<view class="track-fill" :style="progressStyle"></view>
+			</view>
+
+			<!-- ============ 题卡 ============ -->
+			<view class="card q-card">
+				<view class="row">
+					<view class="q-no"><text class="q-no-text">Q{{ index + 1 }}</text></view>
+					<text class="t-xs">{{ currentQuestion.section }}</text>
+				</view>
+
+				<text class="q-text">{{ currentQuestion.text }}</text>
+				<text class="q-hint">{{ currentQuestion.type == 'scale' ? '请选择最符合你真实情况的一项（单选，必答）' : '请选择最接近你平时做法的一项（单选，必答）' }}</text>
+
+				<view class="q-option-list">
+					<view
+						v-for="opt in currentQuestion.options"
+						:key="opt.value"
+						class="q-option"
+						:class="answerValues[index] == opt.value ? 'q-option-on' : ''"
+						@click="choose(opt.value)"
+					>
+						<view class="q-radio" :class="answerValues[index] == opt.value ? 'q-radio-on' : ''">
+							<text v-if="answerValues[index] == opt.value" class="q-tick">✓</text>
+						</view>
+						<text class="q-option-label">{{ opt.label }}</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 操作区 ============ -->
+			<view class="row mt16">
+				<view class="btn btn-ghost q-action-btn" :class="{ 'btn-disabled': index == 0 }" @click="prev">
+					<text class="label-light">上一题</text>
+				</view>
+				<view class="btn btn-primary q-action-btn" @click="next">
+					<text class="label-dark">{{ index >= total - 1 ? '提交并生成数字人' : '下一题' }}</text>
+				</view>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">量表为单选必答，全部作答后才可提交；提交后由后端计算人格画像并生成数字人。</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 性格量表采集页
+	 * 交互：逐题单选 → 必填校验（未选择不允许进入下一题 / 提交）→ 提交量表
+	 * 接口：【后端接口位置 1】POST /api/save-scale（见 common/api.uts 的 saveScale）
+	 *       返回数字人 ID 后跳转对话采集页
+	 */
+	import { STORAGE_MODE, STORAGE_DH_ID, STORAGE_DH_NAME, getStore, setStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+	import { buildQuestions } from '@/common/mock.uts'
+	import { saveScale } from '@/common/api.uts'
+	import { Question, AnswerPayload } from '@/common/types.uts'
+
+	// 采集模式（由上一页写入本地存储）
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const modeName = mode == 'deep' ? '深度建模' : '快速建模'
+
+	// 题库（前端静态内容）
+	const questionList : Question[] = buildQuestions(mode)
+	const total = questionList.length
+
+	// 当前题号
+	const index = ref(0)
+	// 答案数组（下标与题目一一对应，0 表示未作答）
+	const answerValues = ref<number[]>([])
+	// 已作答题数
+	const answered = ref(0)
+	// 进度百分比
+	const progressPercent = ref(0)
+
+	// 进度条样式（在脚本里拼好字符串，避免模板中的类型转换问题）
+	const progressStyle = computed(() : string => {
+		return 'width:' + progressPercent.value.toString() + '%'
+	})
+
+	// 防止重复提交
+	const submitting = ref(false)
+
+	// 初始化答案数组
+	function initAnswer() {
+		const arr : number[] = []
+		for (let i = 0; i < total; i++) {
+			arr.push(0)
+		}
+		answerValues.value = arr
+	}
+	initAnswer()
+
+	// 当前题目
+	const currentQuestion = computed(() : Question => {
+		return questionList[index.value]
+	})
+
+	// 刷新已作答数量与进度
+	function refreshStat() {
+		let count = 0
+		for (let i = 0; i < answerValues.value.length; i++) {
+			if (answerValues.value[i] > 0) {
+				count++
+			}
+		}
+		answered.value = count
+		progressPercent.value = Math.round(count * 100 / total)
+	}
+
+	// 选择选项
+	function choose(value : number) {
+		const arr = answerValues.value
+		arr[index.value] = value
+		answerValues.value = arr
+		refreshStat()
+	}
+
+	// 当前题是否已作答
+	function currentAnswered() : boolean {
+		return answerValues.value[index.value] > 0
+	}
+
+	// 下一题（未作答时拦截）
+	function next() {
+		if (!currentAnswered()) {
+			uni.showToast({ title: '本题为必答题，请先选择一项', icon: 'none' })
+			return
+		}
+		if (index.value >= total - 1) {
+			submit()
+			return
+		}
+		index.value = index.value + 1
+		uni.pageScrollTo({ scrollTop: 0, duration: 200 })
+	}
+
+	// 上一题
+	function prev() {
+		if (index.value == 0) {
+			uni.showToast({ title: '已经是第一题了', icon: 'none' })
+			return
+		}
+		index.value = index.value - 1
+		uni.pageScrollTo({ scrollTop: 0, duration: 200 })
+	}
+
+	// 提交量表：空值不可提交
+	async function submit() {
+		if (submitting.value) {
+			return
+		}
+		let missing = -1
+		for (let i = 0; i < total; i++) {
+			if (answerValues.value[i] <= 0) {
+				missing = i
+				break
+			}
+		}
+		if (missing >= 0) {
+			index.value = missing
+			uni.pageScrollTo({ scrollTop: 0, duration: 200 })
+			uni.showToast({ title: '还有 ' + (total - answered.value).toString() + ' 题未作答', icon: 'none' })
+			return
+		}
+
+		submitting.value = true
+		uni.showLoading({ title: '正在生成数字人…' })
+		try {
+			// 组装答案（保留维度与反向计分标记，交给后端计算人格分数）
+			const payload : AnswerPayload[] = []
+			for (let i = 0; i < total; i++) {
+				const q = questionList[i]
+				payload.push({
+					id: q.id, section: q.section, type: q.type,
+					dim: q.dim, reverse: q.reverse, field: q.field,
+					value: answerValues.value[i]
+				})
+			}
+			// ⬇⬇ 调用【后端接口位置 1】：POST /api/save-scale，返回数字人 ID
+			const res = await saveScale(mode, payload)
+			setStore(STORAGE_DH_ID, res.dhId)
+			setStore(STORAGE_DH_NAME, res.dhName)
+
+			uni.hideLoading()
+			// 提交后立即进入第 4 步「技能标签」页，选完技能再进入对话采集
+			uni.redirectTo({
+				url: '/pages/skill-select/skill-select?mode=' + mode
+			})
+		} catch (e) {
+			uni.hideLoading()
+			uni.showToast({ title: '提交失败，请稍后重试', icon: 'none' })
+		}
+		submitting.value = false
+	}
+</script>
+
+<style>
+	/* ---------- 量表页专属样式 ---------- */
+	.q-badge-text { font-size: 12px; color: #b9e9ff; }
+	.q-section-name { margin-left: 10px; color: #dfe8fb; }
+	.q-progress { font-size: 14px; font-weight: bold; color: #eef4ff; }
+	.q-answered { margin-left: 10px; }
+
+	.q-card { padding: 22px; }
+
+	.q-no {
+		padding: 3px 10px;
+		border-radius: 8px;
+		background-color: #2f7bff;
+		margin-right: 10px;
+	}
+
+	.q-no-text { font-size: 12px; font-weight: bold; color: #ffffff; }
+
+	.q-text {
+		margin-top: 16px;
+		font-size: 20px;
+		font-weight: bold;
+		line-height: 30px;
+		color: #f3f7ff;
+	}
+
+	.q-hint { margin-top: 8px; font-size: 13px; color: #7f90b3; }
+
+	.q-option-list { margin-top: 18px; }
+
+	.q-option {
+		flex-direction: row;
+		align-items: center;
+		margin-top: 10px;
+		padding: 14px;
+		border-radius: 12px;
+		background-color: rgba(255, 255, 255, 0.04);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.12);
+	}
+
+	.q-option-on {
+		background-color: rgba(47, 123, 255, 0.18);
+		border-color: rgba(47, 123, 255, 0.85);
+	}
+
+	.q-radio {
+		width: 20px;
+		height: 20px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.35);
+		align-items: center;
+		justify-content: center;
+		margin-right: 12px;
+	}
+
+	.q-radio-on {
+		background-color: #22d3ee;
+		border-color: #22d3ee;
+	}
+
+	.q-tick { font-size: 12px; font-weight: bold; color: #04122b; }
+	.q-option-label { flex: 1; font-size: 15px; color: #c7d3ea; }
+	.q-action-btn { flex: 1; margin-right: 10px; }
+</style>

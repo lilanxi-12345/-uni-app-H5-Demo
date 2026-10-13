@@ -1,0 +1,254 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'activity-list' ? 'steps-item-on' : ''" @click="goStep(s.key, 'activity-list')">
+					<text class="steps-label" :class="s.key == 'activity-list' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+
+		<view class="container">
+			<!-- ============ 页头 ============ -->
+			<text class="h1">竞赛组队活动</text>
+			<text class="muted mt8">选择一个竞赛，让你的数字人先与其他候选数字人模拟一轮协作，再决定要不要组队</text>
+
+			<!-- ============ 我的数字人 mini 卡 ============ -->
+			<view class="card al-mine">
+				<view class="al-avatar"><text class="al-avatar-text">{{ dhAvatar }}</text></view>
+				<view class="al-mine-info">
+					<text class="h3">{{ dhName }} · 我的孪生数字人</text>
+					<text class="t-xs mt8">{{ modeName }} · 画像已生成</text>
+				</view>
+				<view class="btn btn-ghost btn-sm" @click="goProfile">
+					<text class="label-light-sm">查看档案</text>
+				</view>
+			</view>
+
+			<!-- ============ 搜索与分类筛选 ============ -->
+			<input class="al-search" v-model="keyword" placeholder="搜索竞赛名称或主办方" />
+			<view class="wrap mt12">
+				<view
+					v-for="item in categories"
+					:key="item"
+					class="chip item-gap"
+					:class="activeCategory == item ? 'chip-on' : ''"
+					@click="activeCategory = item"
+				>
+					<text class="al-chip-text" :class="activeCategory == item ? 'al-chip-text-on' : ''">{{ item }}</text>
+				</view>
+			</view>
+
+			<!-- ============ 活动列表 ============ -->
+			<view v-if="filtered.length == 0" class="empty">
+				<text class="empty-desc">没有找到符合条件的竞赛活动，换个关键词试试</text>
+			</view>
+
+			<view v-for="item in filtered" :key="item.id" class="card al-card">
+				<view class="row-between">
+					<text class="al-name">{{ item.name }}</text>
+					<view class="wrap">
+						<view class="badge badge-violet item-gap"><text class="al-level-text">{{ item.level }}</text></view>
+						<view class="badge item-gap" :class="item.status == '即将截止' ? 'al-status-urgent' : 'badge-cyan'">
+							<text class="al-status-text">{{ item.status }}</text>
+						</view>
+					</view>
+				</view>
+
+				<text class="t-xs mt8">{{ item.organizer }}</text>
+				<text class="t-md mt8">{{ item.desc }}</text>
+
+				<view class="wrap mt12">
+					<view class="al-info item-gap">
+						<text class="al-info-value">{{ item.teamSize }}</text>
+						<text class="t-xs">组队规模</text>
+					</view>
+					<view class="al-info item-gap">
+						<text class="al-info-value">{{ item.duration }}</text>
+						<text class="t-xs">备赛周期</text>
+					</view>
+					<view class="al-info item-gap">
+						<text class="al-info-value">{{ item.deadline }}</text>
+						<text class="t-xs">报名截止</text>
+					</view>
+					<view class="al-info item-gap">
+						<text class="al-info-hot">{{ daysLeft(item.deadline) }}</text>
+						<text class="t-xs">剩余时间</text>
+					</view>
+				</view>
+
+				<text class="t-xs mt12">该活动还需要</text>
+				<view class="wrap mt8">
+					<view v-for="role in item.needRoles" :key="role" class="chip item-gap">
+						<text class="al-role-text">{{ role }}</text>
+					</view>
+				</view>
+
+				<view class="row-between mt12">
+					<text class="al-reward">奖励：{{ item.reward }}</text>
+					<view class="btn btn-primary btn-sm" @click="startMatch(item)">
+						<text class="label-dark-sm">启动模拟组队</text>
+					</view>
+				</view>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">模拟组队由多个数字人 Agent 自动完成，你只需旁观讨论过程，结束后查看匹配结果。</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 竞赛组队活动页（第 6 步）：活动列表 + 搜索 + 分类筛选
+	 * 数据来源：common/mock.uts 的 buildActivities()（前端静态内容）
+	 * 交互：点击「启动模拟组队」保存所选活动，进入数字人模拟群聊页
+	 */
+	import { STORAGE_MODE, STORAGE_DH_NAME, STORAGE_ACTIVITY, getStore, setStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep, resetAll } from '@/common/steps.uts'
+	import { buildActivities, ACTIVITY_CATEGORIES, toInt } from '@/common/mock.uts'
+	import { ActivityItem } from '@/common/types.uts'
+
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const dhName = getStore(STORAGE_DH_NAME, '辰星')
+	const modeName = mode == 'deep' ? '深度建模' : '快速建模'
+	const dhAvatar = mode == 'deep' ? '清' : '辰'
+
+	// 活动数据与筛选条件
+	const list : ActivityItem[] = buildActivities()
+	const categories : string[] = ACTIVITY_CATEGORIES
+	const keyword = ref('')
+	const activeCategory = ref('全部')
+
+	// 过滤后的活动列表（关键词 + 分类）
+	const filtered = computed(() : ActivityItem[] => {
+		const kw = keyword.value.trim().toLowerCase()
+		const result : ActivityItem[] = []
+		for (let i = 0; i < list.length; i++) {
+			const item = list[i]
+			if (activeCategory.value != '全部') {
+				const isDouble = item.level.indexOf('双创') >= 0 || item.level.indexOf('校级') >= 0
+				const category = isDouble ? '双创类' : '竞赛类'
+				if (category != activeCategory.value) {
+					continue
+				}
+			}
+			if (kw != '') {
+				const text = (item.name + item.organizer + item.desc).toLowerCase()
+				if (text.indexOf(kw) < 0) {
+					continue
+				}
+			}
+			result.push(item)
+		}
+		return result
+	})
+
+	// 计算距报名截止的剩余时间
+	function daysLeft(deadline : string) : string {
+		const parts = deadline.split('-')
+		if (parts.length < 3) {
+			return '—'
+		}
+		const target = new Date(toInt(parts[0]), toInt(parts[1]) - 1, toInt(parts[2]))
+		const diff = Math.ceil((target.getTime() - Date.now()) / 86400000)
+		if (diff < 0) {
+			return '已截止'
+		}
+		if (diff == 0) {
+			return '今天截止'
+		}
+		return '剩 ' + diff.toString() + ' 天'
+	}
+
+	// 启动模拟组队：记录所选活动后进入模拟群聊页
+	function startMatch(item : ActivityItem) {
+		setStore(STORAGE_ACTIVITY, item.name)
+		uni.navigateTo({ url: '/pages/team-sim/team-sim?mode=' + mode })
+	}
+
+	// 查看数字人档案
+	function goProfile() {
+		uni.navigateTo({ url: '/pages/digital-profile/digital-profile' })
+	}
+</script>
+
+<style>
+	/* ---------- 组队活动页专属样式 ---------- */
+	.al-mine {
+		flex-direction: row;
+		align-items: center;
+		flex-wrap: wrap;
+		border-color: rgba(47, 123, 255, 0.3);
+	}
+
+	.al-avatar {
+		width: 52px;
+		height: 52px;
+		border-radius: 16px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 14px;
+		background-image: linear-gradient(135deg, #2f7bff, #22d3ee);
+	}
+
+	.al-avatar-text { font-size: 22px; font-weight: bold; color: #04122b; }
+	.al-mine-info { flex: 1; min-width: 160px; }
+
+	.al-search {
+		height: 48px;
+		margin-top: 18px;
+		padding-left: 16px;
+		padding-right: 16px;
+		border-radius: 12px;
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.14);
+		font-size: 15px;
+		color: #eef4ff;
+	}
+
+	.al-chip-text { font-size: 12px; color: #c3d0e6; }
+	.al-chip-text-on { font-size: 12px; font-weight: bold; color: #04122b; }
+	.al-card { padding: 22px 24px; }
+	.al-name { flex: 1; font-size: 19px; font-weight: bold; color: #f2f7ff; margin-right: 10px; }
+	.al-level-text { font-size: 12px; color: #d9cfff; }
+	.al-status-text { font-size: 12px; color: #9fe9f6; }
+
+	.al-status-urgent {
+		background-color: rgba(251, 191, 36, 0.14);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(251, 191, 36, 0.45);
+	}
+
+	.al-info {
+		flex: 1;
+		min-width: 110px;
+		padding: 10px 12px;
+		border-radius: 12px;
+		background-color: rgba(255, 255, 255, 0.05);
+	}
+
+	.al-info-value { font-size: 14px; font-weight: bold; color: #eef4ff; margin-bottom: 4px; }
+	.al-info-hot { font-size: 14px; font-weight: bold; color: #4be0f0; margin-bottom: 4px; }
+	.al-role-text { font-size: 12px; color: #b7c5de; }
+	.al-reward { flex: 1; font-size: 13px; color: #e2cf9a; margin-right: 10px; }
+</style>

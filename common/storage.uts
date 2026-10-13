@@ -1,0 +1,26 @@
+/**
+ * 本地存储统一 key（Demo 无登录体系，数据仅存本机）
+ * 说明：只存字符串，避免复杂类型在 uni-app x 下的类型转换问题。
+ */
+
+export const STORAGE_MODE = 'dh_mode'              // 采集模式：quick / deep
+export const STORAGE_PRIVACY = 'dh_privacy'        // 是否已同意隐私告知：1 / 0
+export const STORAGE_DH_ID = 'dh_id'               // 后端返回的数字人 ID
+export const STORAGE_DH_NAME = 'dh_name'           // 数字人名称
+export const STORAGE_SAMPLE_COUNT = 'dh_samples'   // 对话采集到的说话样本条数
+export const STORAGE_ACTIVITY = 'dh_activity'      // 当前选择的竞赛活动名称
+export const STORAGE_SKILLS = 'dh_skills'          // 用户勾选的技能标签（用 | 分隔）
+
+// 写入本地存储
+export function setStore(key : string, value : string) {
+	uni.setStorageSync(key, value)
+}
+
+// 读取本地存储，无值时返回默认值
+export function getStore(key : string, defaultValue : string) : string {
+	const raw = uni.getStorageSync(key)
+	if (raw == null || raw == '') {
+		return defaultValue
+	}
+	return raw as string
+}

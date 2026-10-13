@@ -1,0 +1,41 @@
+/**
+ * 顶部步骤条数据与方法（与网页版 Demo 一致的演示导航）
+ * 用途：答辩演示时可在 6 个页面之间快速跳转
+ */
+
+export type StepItem = {
+	key : string
+	label : string
+	url : string
+}
+
+export const STEP_LIST : StepItem[] = [
+	{ key: 'index', label: '1 首页', url: '/pages/index/index' },
+	{ key: 'select-mode', label: '2 选择模式', url: '/pages/select-mode/select-mode' },
+	{ key: 'question', label: '3 量表答题', url: '/pages/question/question' },
+	{ key: 'skill-select', label: '4 技能标签', url: '/pages/skill-select/skill-select' },
+	{ key: 'dialog-collect', label: '5 对话采集', url: '/pages/dialog-collect/dialog-collect' },
+	{ key: 'digital-profile', label: '6 数字人档案', url: '/pages/digital-profile/digital-profile' },
+	{ key: 'activity-list', label: '7 组队活动', url: '/pages/activity-list/activity-list' },
+	{ key: 'team-sim', label: '8 模拟群聊', url: '/pages/team-sim/team-sim' },
+	{ key: 'result', label: '9 匹配结果', url: '/pages/result/result' }
+]
+
+// 跳转到指定步骤（用 reLaunch 保证页面栈干净；点击当前步骤不做任何事，避免重置当前页状态）
+export function goStep(key : string, current : string) {
+	if (key == current) {
+		return
+	}
+	for (let i = 0; i < STEP_LIST.length; i++) {
+		if (STEP_LIST[i].key == key) {
+			uni.reLaunch({ url: STEP_LIST[i].url })
+			return
+		}
+	}
+}
+
+// 重置演示：清空本地数据并回到首页（对应网页版右上角的「重置演示」按钮）
+export function resetAll() {
+	uni.clearStorageSync()
+	uni.reLaunch({ url: '/pages/index/index' })
+}

@@ -1,0 +1,95 @@
+/**
+ * ============================================================
+ * 后端接口层（前端占位 + mock 兜底）
+ * ------------------------------------------------------------
+ * 本项目共需后端提供 4 个接口，全部集中在本文件，方便后端组员对接：
+ *   1. POST /api/save-scale    提交量表问卷，返回数字人 ID
+ *   2. POST /api/save-dialog   保存用户与数字人的对话采集记录
+ *   3. GET  /api/sim-team      触发数字人模拟组队，获取模拟群聊对话
+ *   4. GET  /api/get-result    获取匹配队友结果、评分、分析报告
+ *
+ * 每个函数都包含两个分支：
+ *   MOCK_MODE = true  —— 走 common/mock.uts 的本地假数据（当前默认，无需后端即可演示）
+ *   MOCK_MODE = false —— 走真实后端接口（把 common/config.uts 里的开关改成 false 即可）
+ * ============================================================
+ */
+import { MOCK_MODE, API_SAVE_SCALE, API_SAVE_DIALOG, API_SIM_TEAM, API_GET_RESULT } from './config.uts'
+import { requestGet, requestPost } from './request.uts'
+import { buildScaleResult, buildTeamSim, buildMatchResult } from './mock.uts'
+import { AnswerPayload, DialogRecord, ScaleResult, SaveDialogResult, TeamSimData, MatchResult } from './types.uts'
+
+/**
+ * 【后端接口位置 1】POST /api/save-scale
+ * 作用：提交量表问卷答案，后端完成人格计算并创建数字人，返回数字人 ID
+ * 请求体：{ mode: 'quick'|'deep', answers: [{ id, section, type, dim, reverse, field, value }] }
+ * 返回体：{ dhId: string, dhName: string, mode: string, createdAt: string }
+ */
+export async function saveScale(mode : string, answers : AnswerPayload[]) : Promise<ScaleResult> {
+	if (!MOCK_MODE) {
+		// ⬇⬇ 真实后端请求（后端组员实现 /api/save-scale 后自动生效）
+		const res = await requestPost(API_SAVE_SCALE, { mode: mode, answers: answers })
+		return res as ScaleResult
+	}
+	// ⬇⬇ mock 兜底：本地生成数字人 ID，保证无后端也能继续走流程
+	return buildScaleResult(mode)
+}
+
+/**
+ * 【后端接口位置 2】POST /api/save-dialog
+ * 作用：保存用户与数字人的对话采集记录（用于提取语言风格样本）
+ * 请求体：{ dhId: string, mode: string, records: [{ role: 'user'|'ai', text: string }] }
+ * 返回体：{ saved: boolean, count: number }
+ */
+export async function saveDialog(dhId : string, mode : string, records : DialogRecord[]) : Promise<SaveDialogResult> {
+	if (!MOCK_MODE) {
+		// ⬇⬇ 真实后端请求（后端组员实现 /api/save-dialog 后自动生效）
+		const res = await requestPost(API_SAVE_DIALOG, { dhId: dhId, mode: mode, records: records })
+		return res as SaveDialogResult
+	}
+	// ⬇⬇ mock 兜底
+	return { saved: true, count: records.length }
+}
+
+/**
+ * 【后端接口位置 3】GET /api/sim-team
+ * 作用：触发多个数字人模拟组队讨论，返回模拟群聊对话数据
+ * 请求参数：mode（采集模式）、dhId（数字人 ID）
+ * 返回体：{
+ *   taskTitle: string, taskText: string, taskReqs: string[],
+ *   participants: [{ id, name, avatar, color, role }],
+ *   messages: [{ id, type, name, avatar, color, phase, text, delay, highlight, isSelf }]
+ * }
+ * 说明：type 取值 host（主持人）/ agent（数字人）/ system（系统）/ analysis（系统分析）
+ */
+export async function simTeam(mode : string, dhId : string, dhName : string) : Promise<TeamSimData> {
+	if (!MOCK_MODE) {
+		// ⬇⬇ 真实后端请求（后端组员实现 /api/sim-team 后自动生效）
+		const res = await requestGet(API_SIM_TEAM, 'mode=' + mode + '&dhId=' + dhId)
+		return res as TeamSimData
+	}
+	// ⬇⬇ mock 兜底：本地生成模拟群聊对话
+	return buildTeamSim(mode, dhName)
+}
+
+/**
+ * 【后端接口位置 4】GET /api/get-result
+ * 作用：获取匹配队友结果、五维评分与分析报告
+ * 请求参数：mode（采集模式）、dhId（数字人 ID）
+ * 返回体：{
+ *   myName: string, candidateCount: number, analyzedMessages: number,
+ *   teamPlan: { title, combo[], reasons[], risk },
+ *   analysisReport: string,
+ *   candidates: [{ id, name, avatar, color, role, title, score, rank, quote, sharedTime,
+ *                  dims[{ key, name, weight, score, note }], highlights[], risks[],
+ *                  replay[{ isMe, name, avatar, color, text }] }]
+ * }
+ */
+export async function getResult(mode : string, dhId : string, dhName : string) : Promise<MatchResult> {
+	if (!MOCK_MODE) {
+		// ⬇⬇ 真实后端请求（后端组员实现 /api/get-result 后自动生效）
+		const res = await requestGet(API_GET_RESULT, 'mode=' + mode + '&dhId=' + dhId)
+		return res as MatchResult
+	}
+	// ⬇⬇ mock 兜底：本地生成匹配结果
+	return buildMatchResult(mode, dhName)
+}

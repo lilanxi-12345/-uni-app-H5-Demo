@@ -1,0 +1,305 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'dialog-collect' ? 'steps-item-on' : ''" @click="goStep(s.key, 'dialog-collect')">
+					<text class="steps-label" :class="s.key == 'dialog-collect' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 顶部采集状态 ============ -->
+			<view class="card chat-head">
+				<view class="row">
+					<view class="badge badge-blue"><text class="chat-badge-text">{{ modeName }}</text></view>
+					<text class="t-md chat-scene">{{ scene }}</text>
+				</view>
+				<view class="row-between mt8">
+					<text class="chat-round">{{ roundText }}</text>
+					<text class="t-xs">语言样本 {{ sampleCount }} 段</text>
+				</view>
+			</view>
+
+			<!-- ============ 聊天记录 ============ -->
+			<scroll-view class="chat-list" :scroll-y="true" :scroll-into-view="scrollTo">
+				<view
+					v-for="(msg, i) in messages"
+					:key="i"
+					:id="'msg' + i"
+					class="chat-row"
+					:class="msg.role == 'user' ? 'chat-row-user' : 'chat-row-ai'"
+				>
+					<view class="avatar" :class="msg.role == 'user' ? 'chat-avatar-user' : 'chat-avatar-ai'">
+						<text class="avatar-text">{{ msg.role == 'user' ? '我' : 'AI' }}</text>
+					</view>
+					<view class="bubble" :class="msg.role == 'user' ? 'bubble-right' : 'bubble-left'">
+						<text class="bubble-text">{{ msg.text }}</text>
+					</view>
+				</view>
+			</scroll-view>
+
+			<!-- ============ 输入区 ============ -->
+			<view class="chat-input-area">
+				<!-- 示例回答：现场演示可一键填入 -->
+				<view v-if="currentSample != ''" class="chat-suggest" @click="fillSample">
+					<text class="chat-suggest-label">示例回答</text>
+					<text class="chat-suggest-text">点此一键填入</text>
+				</view>
+
+				<view class="row mt12">
+					<input class="chat-input" v-model="inputText" placeholder="按你平时的方式回答就好…" />
+					<view class="btn btn-primary chat-send" @click="send">
+						<text class="label-dark">发送</text>
+					</view>
+				</view>
+
+				<view class="row-between mt12">
+					<text class="t-xs chat-tip">{{ finishTip }}</text>
+					<view class="btn btn-primary btn-sm" :class="{ 'btn-disabled': !canFinish }" @click="finish">
+						<text class="label-dark-sm">完成采集，进入模拟组队</text>
+					</view>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 对话采集页：用户与临时数字人聊天，采集语言风格样本
+	 * 交互：发送消息 → 立即去重展示 → 调用保存接口 → 数字人追问下一轮
+	 * 接口：【后端接口位置 2】POST /api/save-dialog（见 common/api.uts 的 saveDialog）
+	 *       采集完成后跳转数字人模拟组队页
+	 */
+	import { STORAGE_MODE, STORAGE_DH_ID, STORAGE_SAMPLE_COUNT, getStore, setStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+	import { buildDialogRounds } from '@/common/mock.uts'
+	import { saveDialog } from '@/common/api.uts'
+	import { DialogRound, DialogRecord } from '@/common/types.uts'
+
+	// 采集模式与数字人 ID（由量表页写入本地存储）
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const dhId = getStore(STORAGE_DH_ID, 'DH-LOCAL')
+	const modeName = mode == 'deep' ? '深度建模' : '快速建模'
+
+	// 对话脚本（前端静态内容）
+	const rounds : DialogRound[] = buildDialogRounds(mode)
+	const minRounds = mode == 'deep' ? 3 : rounds.length
+
+	// 聊天记录
+	const messages = ref<DialogRecord[]>([])
+	// 输入框内容
+	const inputText = ref('')
+	// 已完成轮次
+	const roundIndex = ref(0)
+	// 采集到的说话样本数
+	const sampleCount = ref(0)
+	// 是否可结束采集
+	const canFinish = ref(false)
+	// 防止重复跳转
+	const navigating = ref(false)
+	// 当前场景
+	const scene = ref('准备开始')
+	// 滚动定位
+	const scrollTo = ref('')
+
+	// 轮次文案
+	const roundText = computed(() : string => {
+		if (mode == 'deep') {
+			const need = minRounds - roundIndex.value
+			return need > 0 ? '已聊 ' + roundIndex.value.toString() + ' 轮 · 还差 ' + need.toString() + ' 轮' : '已聊 ' + roundIndex.value.toString() + ' 轮 · 样本充足'
+		}
+		const cur = Math.min(roundIndex.value + 1, rounds.length)
+		return '第 ' + cur.toString() + ' / ' + rounds.length.toString() + ' 轮'
+	})
+
+	// 结束提示
+	const finishTip = computed(() : string => {
+		if (canFinish.value) {
+			return '样本已足够，可以进入模拟组队了'
+		}
+		return '再完成 ' + (minRounds - roundIndex.value).toString() + ' 轮回答即可进入下一步'
+	})
+
+	// 当前轮次的示例回答
+	const currentSample = computed(() : string => {
+		if (roundIndex.value >= rounds.length) {
+			return ''
+		}
+		return rounds[roundIndex.value].sample
+	})
+
+	// 开场白
+	function initChat() {
+		const opening = mode == 'deep'
+			? '我是你的数字人采集助手，接下来我们自由聊一会儿，我会记录你的表达习惯，用来生成你的孪生数字人。'
+			: '我是你的数字人采集助手。接下来有 5 个固定的组队情景，你按自己平时的方式回应就好，这些回答会用来生成你的数字人的语言风格。'
+		const list : DialogRecord[] = [{ role: 'ai', text: opening }]
+		messages.value = list
+		scene.value = rounds.length > 0 ? rounds[0].scene : '自由对话'
+	}
+	initChat()
+
+	// 一键填入示例回答
+	function fillSample() {
+		inputText.value = currentSample.value
+	}
+
+	// 滚动到最新一条消息
+	function scrollToBottom() {
+		scrollTo.value = 'msg' + (messages.value.length - 1).toString()
+	}
+
+	// 发送消息
+	async function send() {
+		const text = inputText.value.trim()
+		if (text == '') {
+			uni.showToast({ title: '先说点什么吧', icon: 'none' })
+			return
+		}
+		const list = messages.value
+		list.push({ role: 'user', text: text })
+		messages.value = list
+		sampleCount.value = sampleCount.value + 1
+		inputText.value = ''
+		setStore(STORAGE_SAMPLE_COUNT, sampleCount.value.toString())
+		scrollToBottom()
+
+		// ⬇⬇ 调用【后端接口位置 2】：保存对话采集记录（每条消息实时保存，后端可据此提取语言风格）
+		await saveDialog(dhId, mode, messages.value)
+
+		// 数字人回应：给出反馈并抛出下一个情景
+		const answered = roundIndex.value + 1
+		let reply = ''
+		if (answered < rounds.length) {
+			reply = '收到，我把你这段表达记下来了。接下来是第 ' + (answered + 1).toString() + ' 个场景：' + rounds[answered].ai
+			scene.value = rounds[answered].scene
+		} else if (mode == 'deep') {
+			reply = '记下了。你可以继续说，也可以直接点击下方按钮进入模拟组队。'
+			scene.value = '自由对话'
+		} else {
+			reply = '五个情景都聊完了，你的语言风格样本已经比较充分，点击下方「完成采集」进入数字人模拟组队吧。'
+			scene.value = '采集完成'
+		}
+		roundIndex.value = answered
+
+		const list2 = messages.value
+		list2.push({ role: 'ai', text: reply })
+		messages.value = list2
+		if (answered >= minRounds) {
+			canFinish.value = true
+		}
+		scrollToBottom()
+
+		// 连贯体验：脚本轮次全部聊完，稍作停留后自动进入数字人模拟组队
+		if (answered >= rounds.length) {
+			setTimeout(() => {
+				finish()
+			}, 1200)
+		}
+	}
+
+	// 完成采集 → 进入模拟组队页
+	function finish() {
+		if (navigating.value) {
+			return
+		}
+		if (!canFinish.value) {
+			uni.showToast({ title: '再完成几轮回答，样本会更准', icon: 'none' })
+			return
+		}
+		navigating.value = true
+		setStore(STORAGE_SAMPLE_COUNT, sampleCount.value.toString())
+		// 与网页版流程一致：对话采集完成后先进入「数字人档案」页
+		uni.redirectTo({
+			url: '/pages/digital-profile/digital-profile'
+		})
+	}
+</script>
+
+<style>
+	/* ---------- 对话采集页专属样式 ---------- */
+	.chat-head { padding: 14px; }
+	.chat-badge-text { font-size: 12px; color: #b9e9ff; }
+	.chat-scene { margin-left: 10px; color: #dfe8fb; }
+	.chat-round { font-size: 14px; font-weight: bold; color: #eef4ff; }
+
+	.chat-list {
+		height: 400px;
+		margin-top: 12px;
+		padding: 12px;
+		border-radius: 14px;
+		background-color: rgba(9, 14, 28, 0.9);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.chat-row { margin-top: 14px; }
+	.chat-row-ai { flex-direction: row; align-items: flex-start; }
+	.chat-row-user { flex-direction: row-reverse; align-items: flex-start; }
+
+	.chat-avatar-ai { background-image: linear-gradient(120deg, #2f7bff, #22d3ee); }
+	.chat-avatar-user { background-color: rgba(255, 255, 255, 0.16); }
+
+	.chat-row-user .avatar-text { color: #e8eefb; }
+
+	.chat-input-area {
+		margin-top: 12px;
+		padding: 14px;
+		border-radius: 16px;
+		background-color: rgba(11, 18, 34, 0.96);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+	}
+
+	.chat-suggest {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding: 10px 12px;
+		border-radius: 10px;
+		background-color: rgba(34, 211, 238, 0.1);
+		border-width: 1px;
+		border-style: dashed;
+		border-color: rgba(34, 211, 238, 0.4);
+	}
+
+	.chat-suggest-label { font-size: 12px; color: #9fe9f6; }
+	.chat-suggest-text { font-size: 12px; color: #6fc7ff; }
+
+	.chat-input {
+		flex: 1;
+		height: 46px;
+		padding-left: 14px;
+		padding-right: 14px;
+		border-radius: 12px;
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.14);
+		font-size: 15px;
+		color: #eef4ff;
+		margin-right: 10px;
+	}
+
+	.chat-send { margin-right: 0; }
+	.chat-tip { flex: 1; }
+</style>

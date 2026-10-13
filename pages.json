@@ -1,0 +1,76 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "孪生数字人组队系统",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/select-mode/select-mode",
+			"style": {
+				"navigationBarTitleText": "采集模式选择",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/question/question",
+			"style": {
+				"navigationBarTitleText": "性格量表采集",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/skill-select/skill-select",
+			"style": {
+				"navigationBarTitleText": "技能标签选择",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/dialog-collect/dialog-collect",
+			"style": {
+				"navigationBarTitleText": "数字人对话采集",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/digital-profile/digital-profile",
+			"style": {
+				"navigationBarTitleText": "数字人档案",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/activity-list/activity-list",
+			"style": {
+				"navigationBarTitleText": "竞赛组队活动",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/team-sim/team-sim",
+			"style": {
+				"navigationBarTitleText": "数字人模拟组队讨论",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/result/result",
+			"style": {
+				"navigationBarTitleText": "组队匹配结果",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "孪生数字人组队系统",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#070B18",
+		"backgroundColorTop": "#070B18",
+		"backgroundColorBottom": "#070B18"
+	},
+	"uniIdRouter": {}
+}

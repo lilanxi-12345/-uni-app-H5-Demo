@@ -1,0 +1,483 @@
+<script setup lang="uts">
+	/*
+	 * 应用入口：只负责应用级生命周期日志
+	 * 说明：本项目所有数据来自 common/mock.uts 的本地假数据，
+	 *       后端接口位置统一在 common/api.uts 中标注。
+	 */
+	onLaunch(() => {
+		console.log('App Launch：孪生数字人组队系统（uni-app x）')
+	})
+
+	onAppShow(() => {
+		console.log('App Show')
+	})
+
+	onAppHide(() => {
+		console.log('App Hide')
+	})
+</script>
+
+<style>
+	/* ============================================================
+	   全局公共样式（深色科技风）
+	   注意：uvue 的 view 默认就是纵向 flex 布局，横向布局需显式设置 flex-direction: row
+	   ============================================================ */
+
+	/* ---------- 页面与容器 ---------- */
+	.page {
+		position: relative;
+		flex: 1;
+		height: 100%;
+		padding: 14px 20px 60px 20px;
+		background-image: linear-gradient(180deg, #070b18, #0a1122 55%, #070b18);
+	}
+
+	/* 仅 H5/WEB 生效：让页面容器自身可滚动（uni-app x 页面默认不自带滚动，长内容需容器滚动） */
+	/* #ifdef H5 || WEB */
+	.page {
+		overflow-y: auto;
+		overflow-x: hidden;
+	}
+	/* #endif */
+
+	/* 仅 H5/WEB 生效：页面切换保持深色底 + 轻微淡入，避免切换时闪白（爆闪） */
+	/* #ifdef H5 || WEB */
+	html,
+	body {
+		background-color: #070b18;
+	}
+
+	uni-page,
+	uni-page-body {
+		background-color: #070b18;
+		animation: dh-page-in 0.22s ease;
+	}
+
+	@keyframes dh-page-in {
+		from {
+			opacity: 0.45;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+	/* #endif */
+
+	.container {
+		position: relative;
+		z-index: 2;
+		width: 100%;
+	}
+
+	.card {
+		background-image: linear-gradient(150deg, rgba(19, 27, 48, 0.92), rgba(11, 16, 32, 0.92));
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+		border-radius: 18px;
+		padding: 22px 24px;
+		margin-top: 14px;
+	}
+
+	/* ---------- 布局工具类 ---------- */
+	.row {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.row-between {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.wrap {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.item-gap {
+		margin-right: 8px;
+		margin-top: 8px;
+	}
+
+	.mt8 { margin-top: 8px; }
+	.mt12 { margin-top: 12px; }
+	.mt16 { margin-top: 16px; }
+	.mt24 { margin-top: 24px; }
+
+	/* ---------- 文字 ---------- */
+	.h1 { font-size: 28px; font-weight: bold; color: #f2f7ff; }
+	.h2 { font-size: 21px; font-weight: bold; color: #f2f7ff; }
+	.h3 { font-size: 17px; font-weight: bold; color: #eef4ff; }
+	.t-lg { font-size: 16px; color: #dfe8fb; }
+	.t-md { font-size: 15px; color: #c7d3ea; }
+	.t-sm { font-size: 13px; color: #a9b8d8; }
+	.t-xs { font-size: 12px; color: #8697ba; }
+	.muted { font-size: 13px; color: #93a2c4; }
+	.accent { color: #4be0f0; }
+	.accent-txt { font-size: 13px; color: #6fc7ff; }
+	.foot-note {
+		margin-top: 30px;
+		padding-top: 16px;
+		border-top-width: 1px;
+		border-top-style: solid;
+		border-top-color: rgba(255, 255, 255, 0.08);
+		font-size: 12px;
+		color: #75849f;
+	}
+
+	/* ---------- 按钮 ---------- */
+	.btn {
+		height: 52px;
+		border-radius: 12px;
+		align-items: center;
+		justify-content: center;
+		padding-left: 26px;
+		padding-right: 26px;
+	}
+
+	.btn-sm {
+		height: 40px;
+		padding-left: 16px;
+		padding-right: 16px;
+		border-radius: 10px;
+	}
+
+	.btn-block {
+		width: 100%;
+	}
+
+	.btn-primary {
+		background-image: linear-gradient(90deg, #2f7bff, #22d3ee);
+	}
+
+	.btn-ghost {
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.22);
+	}
+
+	.btn-disabled {
+		opacity: 0.45;
+	}
+
+	.label-dark { color: #04122b; font-size: 16px; font-weight: bold; }
+	.label-light { color: #e6edfb; font-size: 16px; font-weight: bold; }
+	.label-dark-sm { color: #04122b; font-size: 14px; font-weight: bold; }
+	.label-light-sm { color: #e6edfb; font-size: 14px; font-weight: bold; }
+
+	/* ---------- 标签 / 徽标 ---------- */
+	.badge {
+		padding: 4px 12px;
+		border-radius: 999px;
+		font-size: 12px;
+	}
+
+	.badge-blue {
+		color: #b9e9ff;
+		background-color: rgba(47, 123, 255, 0.16);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.45);
+	}
+
+	.badge-violet {
+		color: #d9cfff;
+		background-color: rgba(124, 92, 255, 0.16);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(124, 92, 255, 0.45);
+	}
+
+	.badge-cyan {
+		color: #9fe9f6;
+		background-color: rgba(34, 211, 238, 0.14);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(34, 211, 238, 0.4);
+	}
+
+	.chip {
+		padding: 6px 12px;
+		border-radius: 8px;
+		font-size: 12px;
+		color: #b7c5de;
+		background-color: rgba(255, 255, 255, 0.05);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.12);
+	}
+
+	.chip-on {
+		color: #04122b;
+		font-weight: bold;
+		background-color: #22d3ee;
+		border-color: #22d3ee;
+	}
+
+	/* ---------- 进度条 ---------- */
+	.track {
+		height: 6px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.1);
+		margin-top: 10px;
+	}
+
+	.track-fill {
+		height: 6px;
+		border-radius: 999px;
+		background-image: linear-gradient(90deg, #2f7bff, #22d3ee);
+	}
+
+	/* ---------- 五维打分条 ---------- */
+	.dim-top {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 12px;
+	}
+
+	.dim-track {
+		height: 7px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.1);
+		margin-top: 6px;
+	}
+
+	.dim-fill {
+		height: 7px;
+		border-radius: 999px;
+		background-image: linear-gradient(90deg, #2f7bff, #22d3ee);
+	}
+
+	/* ---------- 聊天气泡 ---------- */
+	.avatar {
+		width: 36px;
+		height: 36px;
+		border-radius: 12px;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.avatar-text { font-size: 14px; font-weight: bold; color: #04122b; }
+
+	.bubble {
+		max-width: 72%;
+		padding: 12px 14px;
+		border-radius: 14px;
+	}
+
+	.bubble-left {
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+		margin-left: 10px;
+	}
+
+	.bubble-right {
+		background-color: rgba(47, 123, 255, 0.22);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.5);
+		margin-right: 10px;
+	}
+
+	.bubble-text { font-size: 15px; color: #e6edfb; }
+
+	/* ---------- 弹窗 ---------- */
+	.mask {
+		position: fixed;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-color: rgba(3, 6, 14, 0.78);
+		align-items: center;
+		justify-content: center;
+		padding: 20px;
+	}
+
+	.modal {
+		width: 100%;
+		background-color: #111a30;
+		border-radius: 18px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.35);
+		padding: 22px;
+	}
+
+	.modal-item {
+		flex-direction: row;
+		margin-top: 10px;
+		padding: 12px;
+		border-radius: 10px;
+		background-color: rgba(255, 255, 255, 0.05);
+	}
+
+	.modal-index {
+		width: 22px;
+		height: 22px;
+		border-radius: 11px;
+		background-color: #2f7bff;
+		align-items: center;
+		justify-content: center;
+		margin-right: 10px;
+	}
+
+	.agree-row {
+		flex-direction: row;
+		align-items: center;
+		margin-top: 16px;
+		padding: 12px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.12);
+	}
+
+	.checkbox {
+		width: 22px;
+		height: 22px;
+		border-radius: 6px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.35);
+		align-items: center;
+		justify-content: center;
+		margin-right: 10px;
+	}
+
+	.checkbox-on {
+		background-color: #22d3ee;
+		border-color: #22d3ee;
+	}
+
+	/* ---------- 空状态 ---------- */
+	.empty {
+		padding: 60px 20px;
+		align-items: center;
+	}
+
+	.empty-icon { font-size: 40px; }
+
+	/* ---------- 背景光晕（与网页版一致的科技感装饰） ---------- */
+	.glow {
+		position: absolute;
+	}
+
+	.glow-a {
+		width: 420px;
+		height: 420px;
+		border-radius: 210px;
+		top: -140px;
+		left: -110px;
+		background-image: radial-gradient(circle, rgba(47, 123, 255, 0.42), rgba(47, 123, 255, 0));
+	}
+
+	.glow-b {
+		width: 360px;
+		height: 360px;
+		border-radius: 180px;
+		top: 220px;
+		right: -120px;
+		background-image: radial-gradient(circle, rgba(124, 92, 255, 0.34), rgba(124, 92, 255, 0));
+	}
+
+	/* ---------- 背景网格（仅 H5/WEB 生效，其它平台自动跳过） ---------- */
+	/* #ifdef H5 || WEB */
+	.grid-h {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0px, rgba(255, 255, 255, 0.045) 1px, rgba(0, 0, 0, 0) 1px, rgba(0, 0, 0, 0) 56px);
+	}
+
+	.grid-v {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0px, rgba(255, 255, 255, 0.045) 1px, rgba(0, 0, 0, 0) 1px, rgba(0, 0, 0, 0) 56px);
+	}
+	/* #endif */
+
+	/* ---------- 顶部步骤条（与网页版一致，演示时可直接跳页） ---------- */
+	.steps {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+		padding-bottom: 6px;
+	}
+
+	.steps-item {
+		padding: 5px 12px;
+		border-radius: 999px;
+		margin-right: 6px;
+		margin-top: 6px;
+	}
+
+	.steps-item-on {
+		background-image: linear-gradient(90deg, #2f7bff, #22d3ee);
+	}
+
+	.steps-label { font-size: 12px; color: #93a2c4; }
+	.steps-label-on { font-size: 12px; color: #04122b; font-weight: bold; }
+
+	/* ---------- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） ---------- */
+	.topbar {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		padding: 10px 12px;
+		border-radius: 14px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+		background-color: rgba(12, 18, 34, 0.9);
+		margin-bottom: 12px;
+	}
+
+	.topbar-brand {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.topbar-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 6px;
+		margin-right: 8px;
+		background-image: linear-gradient(120deg, #2f7bff, #22d3ee);
+	}
+
+	.topbar-name { font-size: 15px; font-weight: bold; color: #eef4ff; }
+	.topbar-sub { margin-left: 8px; font-size: 12px; color: #8697ba; }
+
+	.topbar-reset {
+		padding: 6px 14px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.16);
+		background-color: rgba(255, 255, 255, 0.05);
+	}
+
+	.topbar-reset-text { font-size: 13px; color: #b7c5de; }
+
+	/* ---------- 悬停与毛玻璃（仅 H5/WEB 生效） ---------- */
+	/* #ifdef H5 || WEB */
+	.steps-item:hover { background-color: rgba(255, 255, 255, 0.07); }
+	.btn:hover { opacity: 0.92; }
+	.card:hover { border-color: rgba(47, 123, 255, 0.45); }
+	.mask { backdrop-filter: blur(6px); }
+	/* #endif */
+</style>

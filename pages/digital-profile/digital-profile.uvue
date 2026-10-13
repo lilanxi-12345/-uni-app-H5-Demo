@@ -1,0 +1,312 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'digital-profile' ? 'steps-item-on' : ''" @click="goStep(s.key, 'digital-profile')">
+					<text class="steps-label" :class="s.key == 'digital-profile' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+
+		<view class="container">
+			<!-- ============ 数字人主档案卡 ============ -->
+			<view class="card pf-card">
+				<view class="pf-avatar">
+					<text class="pf-avatar-text">{{ profile.avatar }}</text>
+				</view>
+				<view class="pf-info">
+					<view class="row">
+						<text class="h2">数字人 · {{ profile.dhName }}</text>
+						<view class="badge badge-cyan pf-badge"><text class="pf-badge-text">{{ profile.modeName }}</text></view>
+					</view>
+					<text class="t-xs mt8">DIGITAL HUMAN PROFILE</text>
+					<text class="t-md mt8">{{ profile.oneLine }}</text>
+					<view class="wrap mt12">
+						<view v-for="tag in profile.tags" :key="tag" class="chip item-gap">
+							<text class="pf-chip-text">{{ tag }}</text>
+						</view>
+					</view>
+				</view>
+				<view class="pf-complete">
+					<text class="pf-complete-value">{{ profile.completeness }}%</text>
+					<text class="t-xs">画像完整度</text>
+				</view>
+			</view>
+
+			<!-- ============ 8 字段画像 ============ -->
+			<text class="pf-section">8 字段用户画像</text>
+
+			<!-- 01 大五人格 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">01</text></view>
+					<text class="h3">大五人格</text>
+					<text class="t-xs">人格兼容度的主要依据</text>
+				</view>
+				<view v-for="item in profile.bigFive" :key="item.name">
+					<view class="dim-top">
+						<text class="pf-dim-name">{{ item.name }}</text>
+						<text class="pf-dim-score">{{ item.score }}</text>
+					</view>
+					<view class="dim-track">
+						<view class="dim-fill" :style="barStyle(item.score)"></view>
+					</view>
+					<text class="t-xs mt8">{{ item.desc }}</text>
+				</view>
+			</view>
+
+			<!-- 02 / 03 / 04 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">02</text></view>
+					<text class="h3">组队角色</text>
+				</view>
+				<text class="pf-strong">{{ profile.role }}</text>
+				<text class="t-sm mt8">{{ profile.roleDesc }}</text>
+			</view>
+
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">03</text></view>
+					<text class="h3">沟通风格</text>
+				</view>
+				<view class="row-between mt12">
+					<text class="t-sm">表达方式</text>
+					<text class="pf-value">{{ profile.commStyle }}</text>
+				</view>
+				<view class="row-between mt8">
+					<text class="t-sm">同步节奏</text>
+					<text class="pf-value">{{ profile.commPace }}</text>
+				</view>
+				<view class="row-between mt8">
+					<text class="t-sm">分歧处理</text>
+					<text class="pf-value">{{ profile.commConflict }}</text>
+				</view>
+			</view>
+
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">04</text></view>
+					<text class="h3">可用时间</text>
+				</view>
+				<view class="row-between mt12">
+					<text class="t-sm">工作日</text>
+					<text class="pf-value">{{ profile.weekdays }}</text>
+				</view>
+				<view class="row-between mt8">
+					<text class="t-sm">周末</text>
+					<text class="pf-value">{{ profile.weekend }}</text>
+				</view>
+				<view class="row-between mt8">
+					<text class="t-sm">投入时长</text>
+					<text class="pf-value">{{ profile.hours }}</text>
+				</view>
+			</view>
+
+			<!-- 05 技能标签 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">05</text></view>
+					<text class="h3">技能标签</text>
+					<text class="t-xs">用于技能互补度打分</text>
+				</view>
+				<view v-for="item in profile.skills" :key="item.name">
+					<view class="dim-top">
+						<text class="pf-dim-name">{{ item.name }}</text>
+						<text class="pf-dim-score">{{ item.level }}</text>
+					</view>
+					<view class="dim-track">
+						<view class="dim-fill" :style="barStyle(item.level)"></view>
+					</view>
+				</view>
+			</view>
+
+			<!-- 06 底线雷点 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">06</text></view>
+					<text class="h3">底线雷点</text>
+					<text class="t-xs">组队前先讲清楚，避免中途踩雷</text>
+				</view>
+				<view class="wrap mt12">
+					<view v-for="item in profile.redlines" :key="item" class="pf-redline item-gap">
+						<text class="pf-redline-text">⛔ {{ item }}</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- 07 说话样本 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">07</text></view>
+					<text class="h3">说话样本</text>
+					<text class="t-xs">数字人模仿你表达的语料来源</text>
+				</view>
+				<view v-for="(item, i) in profile.speechSamples" :key="i" class="pf-quote">
+					<text class="t-xs">对话采集 · 第 {{ i + 1 }} 段</text>
+					<text class="t-sm mt8">{{ item }}</text>
+				</view>
+			</view>
+
+			<!-- 08 记忆锚点 -->
+			<view class="card">
+				<view class="row">
+					<view class="pf-index"><text class="pf-index-text">08</text></view>
+					<text class="h3">记忆锚点</text>
+					<text class="t-xs">让数字人「记得你」的关键经历</text>
+				</view>
+				<view v-for="(item, i) in profile.memoryAnchors" :key="i" class="row mt12">
+					<view class="pf-anchor"><text class="pf-anchor-text">{{ i + 1 }}</text></view>
+					<text class="t-sm pf-anchor-item">{{ item }}</text>
+				</view>
+			</view>
+
+			<!-- ============ 操作区 ============ -->
+			<view class="row mt24">
+				<view class="btn btn-ghost pf-action" @click="goCollect">
+					<text class="label-light">重新采集</text>
+				</view>
+				<view class="btn btn-primary pf-action" @click="goActivities">
+					<text class="label-dark">进入竞赛组队活动</text>
+				</view>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">全部数据仅保存在本机；Demo 阶段不上传服务器。</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 数字人档案页（第 5 步）：展示 8 字段用户画像
+	 * 数据来源：前端根据采集模式 + 数字人名称 + 对话样本条数本地生成
+	 * 说明：真实版本可由后端接口返回同结构数据（见 common/types.uts 的 DigitalProfile）
+	 */
+	import { STORAGE_MODE, STORAGE_DH_NAME, STORAGE_SAMPLE_COUNT, STORAGE_SKILLS, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep, resetAll } from '@/common/steps.uts'
+	import { buildProfile, toInt } from '@/common/mock.uts'
+	import { DigitalProfile } from '@/common/types.uts'
+
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const dhName = getStore(STORAGE_DH_NAME, '辰星')
+	const sampleCount = toInt(getStore(STORAGE_SAMPLE_COUNT, '0'))
+	const skillsText = getStore(STORAGE_SKILLS, '')
+
+	// 数字人档案（8 字段画像；技能标签取自第 4 步的勾选结果）
+	const profile : DigitalProfile = buildProfile(mode, dhName, sampleCount, skillsText)
+
+	// 评分条宽度样式
+	function barStyle(score : number) : string {
+		return 'width:' + score.toString() + '%'
+	}
+
+	// 进入竞赛组队活动页
+	function goActivities() {
+		uni.navigateTo({ url: '/pages/activity-list/activity-list' })
+	}
+
+	// 重新采集
+	function goCollect() {
+		uni.navigateTo({ url: '/pages/select-mode/select-mode' })
+	}
+</script>
+
+<style>
+	/* ---------- 数字人档案页专属样式 ---------- */
+	.pf-card {
+		flex-direction: row;
+		align-items: center;
+		flex-wrap: wrap;
+		border-color: rgba(47, 123, 255, 0.32);
+	}
+
+	.pf-avatar {
+		width: 88px;
+		height: 88px;
+		border-radius: 24px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 20px;
+		background-image: linear-gradient(135deg, #2f7bff, #22d3ee);
+	}
+
+	.pf-avatar-text { font-size: 36px; font-weight: bold; color: #04122b; }
+	.pf-info { flex: 1; min-width: 220px; }
+	.pf-badge { margin-left: 10px; }
+	.pf-badge-text { font-size: 12px; color: #9fe9f6; }
+	.pf-chip-text { font-size: 12px; color: #bfe4ff; }
+	.pf-complete { align-items: center; padding-left: 20px; }
+	.pf-complete-value { font-size: 28px; font-weight: bold; color: #4be0f0; }
+
+	.pf-section {
+		margin-top: 28px;
+		font-size: 16px;
+		font-weight: bold;
+		color: #dfe8fb;
+	}
+
+	.pf-index {
+		padding: 3px 10px;
+		border-radius: 8px;
+		background-color: #2f7bff;
+		margin-right: 10px;
+	}
+
+	.pf-index-text { font-size: 12px; font-weight: bold; color: #ffffff; }
+	.pf-dim-name { font-size: 14px; font-weight: bold; color: #e6edfb; }
+	.pf-dim-score { font-size: 14px; font-weight: bold; color: #4be0f0; }
+	.pf-strong { margin-top: 12px; font-size: 22px; font-weight: bold; color: #4be0f0; }
+	.pf-value { font-size: 14px; font-weight: bold; color: #eef4ff; }
+
+	.pf-redline {
+		padding: 8px 14px;
+		border-radius: 10px;
+		background-color: rgba(248, 113, 113, 0.12);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(248, 113, 113, 0.35);
+	}
+
+	.pf-redline-text { font-size: 13px; color: #ffd0cd; }
+
+	.pf-quote {
+		margin-top: 12px;
+		padding: 12px;
+		border-radius: 10px;
+		background-color: rgba(47, 123, 255, 0.1);
+		border-left-width: 3px;
+		border-left-style: solid;
+		border-left-color: #2f7bff;
+	}
+
+	.pf-anchor {
+		width: 22px;
+		height: 22px;
+		border-radius: 11px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 10px;
+		background-image: linear-gradient(120deg, #22d3ee, #34d399);
+	}
+
+	.pf-anchor-text { font-size: 12px; font-weight: bold; color: #04122b; }
+	.pf-anchor-item { flex: 1; line-height: 20px; }
+	.pf-action { flex: 1; margin-right: 10px; }
+</style>

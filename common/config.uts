@@ -1,0 +1,20 @@
+/**
+ * 全局配置
+ * ------------------------------------------------------------
+ * BASE_URL：所有后端接口的统一前缀（后端组员按此路径实现）
+ * MOCK_MODE：Demo 兜底开关
+ *   true  —— 使用 common/mock.uts 的本地假数据，无需后端即可跑通全部页面
+ *   false —— 调用真实后端接口（common/api.uts 中的真实请求分支）
+ */
+
+// 后端接口统一基础地址（前端请求统一走 uni.request 封装，见 common/request.uts）
+export const BASE_URL = '/api'
+
+// 本地假数据兜底开关（后端未上线时保持 true）
+export const MOCK_MODE = true
+
+/* ================= 后端接口路径（4 个） ================= */
+export const API_SAVE_SCALE = '/save-scale'    // POST 提交量表问卷，返回数字人 ID
+export const API_SAVE_DIALOG = '/save-dialog'  // POST 保存对话采集记录
+export const API_SIM_TEAM = '/sim-team'        // GET  触发数字人模拟组队，返回群聊对话
+export const API_GET_RESULT = '/get-result'    // GET  获取匹配队友结果、评分、分析报告

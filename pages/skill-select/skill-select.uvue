@@ -1,0 +1,168 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条 -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'skill-select' ? 'steps-item-on' : ''" @click="goStep(s.key, 'skill-select')">
+					<text class="steps-label" :class="s.key == 'skill-select' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+
+		<view class="container">
+			<!-- ============ 页头 ============ -->
+			<text class="h1">你会哪些技能？</text>
+			<text class="muted mt8">可多选。技能标签会参与匹配里的「技能互补度」计算，建议如实勾选；没覆盖到的技能可以在下一步对话采集里补充说明。</text>
+
+			<!-- ============ 已选状态与操作 ============ -->
+			<view class="card sk-bar">
+				<view>
+					<text class="t-xs">已选择</text>
+					<text class="sk-count">{{ selected.length }} 项技能</text>
+				</view>
+				<view class="row">
+					<view class="btn btn-ghost btn-sm sk-btn" @click="clearAll">
+						<text class="label-light-sm">清空</text>
+					</view>
+					<view class="btn btn-primary btn-sm sk-btn" @click="confirm">
+						<text class="label-dark-sm">确认并进入对话采集</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 技能标签分组（点击切换选中） ============ -->
+			<view v-for="g in groups" :key="g.group" class="card">
+				<view class="row">
+					<text class="h3">{{ g.group }}</text>
+					<text class="t-xs">共 {{ g.items.length }} 项</text>
+				</view>
+				<view class="wrap mt12">
+					<view
+						v-for="item in g.items"
+						:key="item"
+						class="chip item-gap"
+						:class="isSelected(item) ? 'chip-on' : ''"
+						@click="toggle(item)"
+					>
+						<text class="sk-chip-text" :class="isSelected(item) ? 'sk-chip-text-on' : ''">{{ item }}</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 局限性说明（页面底部小字） ============ -->
+			<view class="sk-note">
+				<text class="sk-note-text">局限性说明：技能标签只用于粗粒度的「技能互补」匹配，无法代表真实熟练度、项目深度与协作表现；系统会把这些标签与后续「对话采集」中的表达内容、「模拟组队」中的协作表现结合，综合评估技能互补度。列表没有覆盖的技能，请在对话采集环节用文字补充说明。</text>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">技能标签保存在本机；后端接入后可随量表一起提交（接口位置见 common/api.uts 中的注释）。</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 技能标签选择页（第 4 步：插在「量表答题」之后、「对话采集」之前）
+	 * 交互：点击标签多选 → 「确认并进入对话采集」
+	 * 数据：common/mock.uts 的 SKILL_GROUPS（前端静态内容，可随时增删标签）
+	 * 接口：【后端接口位置】技能标签可并入 POST /api/save-scale 一起提交，或由后端另开接口接收
+	 */
+	import { STORAGE_MODE, STORAGE_SKILLS, setStore, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep, resetAll } from '@/common/steps.uts'
+	import { SKILL_GROUPS } from '@/common/mock.uts'
+	import { SkillGroup } from '@/common/types.uts'
+
+	// 采集模式（前一步已写入本地存储）
+	const mode = getStore(STORAGE_MODE, 'quick')
+
+	// 技能标签分组
+	const groups : SkillGroup[] = SKILL_GROUPS
+
+	// 已选技能（标签文本数组）
+	const selected = ref<string[]>([])
+
+	// 初始化：恢复上次勾选结果
+	function initSelected() {
+		const saved = getStore(STORAGE_SKILLS, '')
+		if (saved != '') {
+			selected.value = saved.split('|')
+		}
+	}
+	initSelected()
+
+	// 是否已选中
+	function isSelected(item : string) : boolean {
+		return selected.value.indexOf(item) >= 0
+	}
+
+	// 点击标签：选中 / 取消选中
+	function toggle(item : string) {
+		const arr = selected.value
+		const pos = arr.indexOf(item)
+		if (pos >= 0) {
+			arr.splice(pos, 1)
+		} else {
+			arr.push(item)
+		}
+		selected.value = arr
+	}
+
+	// 清空已选
+	function clearAll() {
+		selected.value = []
+	}
+
+	// 确认技能 → 进入对话采集（第 5 步）
+	function confirm() {
+		if (selected.value.length == 0) {
+			uni.showToast({ title: '请至少选择 1 项技能', icon: 'none' })
+			return
+		}
+		setStore(STORAGE_SKILLS, selected.value.join('|'))
+		uni.navigateTo({ url: '/pages/dialog-collect/dialog-collect?mode=' + mode })
+	}
+</script>
+
+<style>
+	/* ---------- 技能标签页专属样式 ---------- */
+	.sk-bar {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		margin-top: 14px;
+		border-color: rgba(47, 123, 255, 0.4);
+	}
+
+	.sk-count { margin-top: 2px; font-size: 16px; font-weight: bold; color: #4be0f0; }
+	.sk-btn { margin-right: 10px; }
+	.sk-chip-text { font-size: 13px; color: #c3d0e6; }
+	.sk-chip-text-on { font-size: 13px; font-weight: bold; color: #04122b; }
+
+	.sk-note {
+		margin-top: 18px;
+		padding: 14px;
+		border-radius: 12px;
+		background-color: rgba(148, 163, 184, 0.12);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(148, 163, 184, 0.28);
+	}
+
+	.sk-note-text { font-size: 12px; line-height: 20px; color: #9aa8c0; }
+</style>

@@ -1,0 +1,7 @@
+{
+  "name": "campus",
+  "version": "1.0.0",
+  "description": "孪生数字人组队系统 - uni-app x 前端 Demo（H5）",
+  "main": "main.uts",
+  "dependencies": {}
+}

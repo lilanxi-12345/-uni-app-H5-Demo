@@ -1,0 +1,333 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'index' ? 'steps-item-on' : ''" @click="goStep(s.key, 'index')">
+					<text class="steps-label" :class="s.key == 'index' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 主标题区 ============ -->
+			<view class="home-hero">
+				<view class="badge badge-cyan">
+					<text class="home-badge-text">华为开发者大赛 · 孪生数字人组队系统</text>
+				</view>
+				<text class="home-title">孪生数字人组队系统</text>
+				<text class="home-sub">DIGITAL HUMAN TEAM-UP SYSTEM</text>
+				<text class="home-desc">
+					填写量表 + 一段对话，为你生成一个「孪生数字人」。多个数字人先在后台模拟竞赛组队讨论，
+					系统分析对话过程，提前预判谁才是与你最合拍的队友，并提供可回放的模拟对话证据。
+				</text>
+			</view>
+
+			<!-- ============ 核心流程（4 步） ============ -->
+			<view class="home-flow">
+				<view v-for="(step, i) in steps" :key="step.no" class="home-flow-cell">
+					<view class="home-flow-item">
+						<text class="home-flow-no">{{ step.no }}</text>
+						<text class="h3 home-flow-title">{{ step.title }}</text>
+						<text class="t-xs">{{ step.desc }}</text>
+					</view>
+					<text v-if="i < steps.length - 1" class="home-flow-arrow">→</text>
+				</view>
+			</view>
+
+			<!-- ============ 两个建模入口 ============ -->
+			<view class="home-entry-wrap">
+				<view class="card home-entry home-entry-quick">
+					<view class="row-between">
+						<text class="h2">快速建模</text>
+						<view class="badge badge-blue"><text class="home-badge-text-blue">约 5 分钟</text></view>
+					</view>
+					<text class="t-md mt12">轻量量表搭配固定情景对话，快速得到一份可用的数字人人设，适合现场演示。</text>
+					<view class="mt12">
+						<view v-for="point in quickPoints" :key="point" class="row mt8">
+							<text class="home-dot">•</text>
+							<text class="t-sm">{{ point }}</text>
+						</view>
+					</view>
+					<view class="btn btn-primary btn-block mt16" @click="goCollect('quick')">
+						<text class="label-dark">立即开始快速建模</text>
+					</view>
+				</view>
+
+				<view class="card home-entry home-entry-deep">
+					<view class="row-between">
+						<text class="h2">深度建模</text>
+						<view class="badge badge-violet"><text class="home-badge-text-violet">约 30 分钟</text></view>
+					</view>
+					<text class="t-md mt12">完整人格量表 + 价值观题目 + 开放式自由对话，画像更细腻，适配度预测更精准。</text>
+					<view class="mt12">
+						<view v-for="point in deepPoints" :key="point" class="row mt8">
+							<text class="home-dot">•</text>
+							<text class="t-sm">{{ point }}</text>
+						</view>
+					</view>
+					<view class="btn btn-ghost btn-block mt16" @click="goCollect('deep')">
+						<text class="label-light">开始深度建模</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 方案创新点 ============ -->
+			<text class="home-section">方案创新点</text>
+			<view class="home-feature-wrap">
+				<view v-for="item in features" :key="item.title" class="card home-feature">
+					<text class="home-feature-icon">{{ item.icon }}</text>
+					<text class="h3 mt8">{{ item.title }}</text>
+					<text class="t-sm mt8">{{ item.desc }}</text>
+				</view>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">临时用户模式 · 无需注册登录 · 采集数据仅保存在本机</text>
+			</view>
+		</view>
+
+		<!-- ============ 隐私告知弹窗：采集前必须勾选同意 ============ -->
+		<view v-if="showPrivacy" class="mask">
+			<view class="modal">
+				<text class="h2">隐私告知与数据使用说明</text>
+				<text class="muted mt8">开始采集前，请阅读并确认以下内容</text>
+
+				<view v-for="(item, index) in privacyItems" :key="index" class="modal-item">
+					<view class="modal-index"><text class="home-index-text">{{ index + 1 }}</text></view>
+					<text class="t-md home-privacy-text">{{ item }}</text>
+				</view>
+
+				<view class="agree-row" @click="toggleAgree">
+					<view class="checkbox" :class="{ 'checkbox-on': privacyChecked }">
+						<text v-if="privacyChecked" class="home-tick">✓</text>
+					</view>
+					<text class="t-sm home-agree-text">我已阅读并同意上述告知，同意本次采集数据用于生成本人的数字人人设与组队模拟</text>
+				</view>
+
+				<view class="row mt24">
+					<view class="btn btn-ghost home-modal-btn" @click="closePrivacy">
+						<text class="label-light">{{ pendingMode == '' ? '我知道了' : '暂不同意' }}</text>
+					</view>
+					<view v-if="pendingMode != ''" class="btn btn-primary home-modal-btn" @click="agreeAndContinue">
+						<text class="label-dark">同意并继续</text>
+					</view>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 首页：项目简介 + 两个建模入口 + 采集前隐私告知
+	 * 跳转：携带 mode 参数进入采集模式选择页
+	 * 说明：参数同时写入本地存储（uni-app x 页面统一从存储读取，保证类型安全）
+	 */
+	import { STORAGE_MODE, STORAGE_PRIVACY, setStore, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+
+	// 隐私弹窗状态
+	const showPrivacy = ref(false)
+	const privacyChecked = ref(false)
+	const pendingMode = ref('quick')
+
+	// 核心流程
+	const steps = [
+		{ no: '01', title: '采集建模', desc: '量表作答 + 对话采样' },
+		{ no: '02', title: '生成数字人', desc: '8 字段用户画像' },
+		{ no: '03', title: '模拟群聊', desc: '多 Agent 预演协作' },
+		{ no: '04', title: '匹配推荐', desc: '五维打分 + 回放' }
+	]
+
+	const quickPoints : string[] = ['TIPI-10 大五人格量表', '6 道组队偏好题', '5 轮固定情景对话']
+	const deepPoints : string[] = ['BFI-44 完整人格量表', '价值观题目', '开放式自由对话']
+
+	// 方案创新点
+	const features = [
+		{ icon: '🧩', title: '预模拟协作', desc: '数字人先替你「聊一遍」，在真实组队前暴露协作摩擦与合作亮点。' },
+		{ icon: '📊', title: '五维匹配打分', desc: '人格兼容、技能互补、角色互补、时间节奏、互动质量五个维度综合评估。' },
+		{ icon: '🔁', title: '反馈数据飞轮', desc: '匹配结果支持互评反馈，持续校准后续推荐的准确度。' }
+	]
+
+	// 隐私告知条目
+	const privacyItems : string[] = [
+		'采集内容：你的量表作答结果、组队偏好选择，以及对话采集环节的文本样本。',
+		'使用目的：仅用于生成属于你的数字人人设，并参与本次组队模拟与匹配演示。',
+		'存储位置：Demo 阶段全部数据仅保存在本机，不会上传服务器。',
+		'你的权利：可随时清除本机数据，清除后不影响继续体验。'
+	]
+
+	// 点击建模入口：已同意过隐私告知则直接进入，否则先弹窗
+	function goCollect(mode : string) {
+		pendingMode.value = mode
+		const agreed = getStore(STORAGE_PRIVACY, '0')
+		if (agreed == '1') {
+			enterSelect()
+			return
+		}
+		privacyChecked.value = false
+		showPrivacy.value = true
+	}
+
+	// 保存模式并跳转采集模式选择页（携带 mode 参数）
+	function enterSelect() {
+		setStore(STORAGE_MODE, pendingMode.value)
+		uni.navigateTo({
+			url: '/pages/select-mode/select-mode?mode=' + pendingMode.value
+		})
+	}
+
+	function toggleAgree() {
+		privacyChecked.value = !privacyChecked.value
+	}
+
+	// 同意并继续：未勾选时拦截
+	function agreeAndContinue() {
+		if (!privacyChecked.value) {
+			uni.showToast({ title: '请先勾选同意后再继续', icon: 'none' })
+			return
+		}
+		setStore(STORAGE_PRIVACY, '1')
+		showPrivacy.value = false
+		enterSelect()
+	}
+
+	function closePrivacy() {
+		showPrivacy.value = false
+		privacyChecked.value = false
+	}
+</script>
+
+<style>
+	/* ---------- 首页专属样式（类名统一加 home- 前缀，避免与其他页面冲突） ---------- */
+	.home-hero {
+		align-items: center;
+		padding-top: 6px;
+	}
+
+	.home-badge-text { font-size: 12px; color: #9fe9f6; }
+	.home-badge-text-blue { font-size: 12px; color: #b9e9ff; }
+	.home-badge-text-violet { font-size: 12px; color: #d9cfff; }
+
+	.home-title {
+		margin-top: 20px;
+		font-size: 40px;
+		font-weight: bold;
+		color: #eaf2ff;
+		text-align: center;
+		/* #ifdef H5 || WEB */
+		background-image: linear-gradient(96deg, #ffffff 8%, #8fc4ff 48%, #6ef0e6 92%);
+		-webkit-background-clip: text;
+		color: transparent;
+		/* #endif */
+	}
+
+	.home-sub {
+		margin-top: 8px;
+		font-size: 12px;
+		color: #8f9dbc;
+		letter-spacing: 2px;
+	}
+
+	.home-desc {
+		margin-top: 18px;
+		font-size: 15px;
+		line-height: 26px;
+		color: #a9b8d8;
+		text-align: center;
+	}
+
+	.home-flow {
+		flex-direction: row;
+		flex-wrap: wrap;
+		justify-content: center;
+		margin-top: 26px;
+	}
+
+	.home-flow-cell {
+		flex-direction: row;
+		align-items: center;
+		margin-top: 10px;
+	}
+
+	.home-flow-item {
+		min-width: 158px;
+		padding: 14px;
+		border-radius: 14px;
+		background-color: rgba(255, 255, 255, 0.05);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.home-flow-arrow {
+		margin-left: 10px;
+		margin-right: 10px;
+		font-size: 16px;
+		color: rgba(135, 158, 200, 0.7);
+	}
+
+	.home-flow-no { font-size: 12px; font-weight: bold; color: #4be0f0; }
+	.home-flow-title { margin-top: 6px; }
+
+	.home-entry-wrap {
+		flex-direction: row;
+		flex-wrap: wrap;
+		margin-top: 12px;
+	}
+
+	.home-entry {
+		width: 48%;
+		min-width: 300px;
+		margin-right: 2%;
+		border-radius: 20px;
+		padding: 24px;
+		box-shadow: 0 18px 46px rgba(3, 7, 18, 0.55);
+	}
+
+	.home-entry-quick { border-color: rgba(47, 123, 255, 0.45); }
+	.home-entry-deep { border-color: rgba(124, 92, 255, 0.42); }
+	.home-dot { color: #4be0f0; margin-right: 8px; font-size: 14px; }
+
+	.home-section {
+		margin-top: 30px;
+		font-size: 16px;
+		font-weight: bold;
+		color: #dfe8fb;
+	}
+
+	.home-feature-wrap {
+		flex-direction: row;
+		flex-wrap: wrap;
+		margin-top: 6px;
+	}
+
+	.home-feature {
+		width: 31%;
+		min-width: 220px;
+		margin-right: 2%;
+	}
+
+	.home-feature-icon { font-size: 24px; }
+
+	.home-index-text { font-size: 12px; font-weight: bold; color: #04122b; }
+	.home-tick { font-size: 13px; font-weight: bold; color: #04122b; }
+	.home-privacy-text { flex: 1; line-height: 22px; }
+	.home-agree-text { flex: 1; line-height: 20px; }
+	.home-modal-btn { flex: 1; margin-right: 10px; }
+</style>

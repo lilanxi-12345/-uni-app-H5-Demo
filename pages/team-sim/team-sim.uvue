@@ -1,0 +1,463 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'team-sim' ? 'steps-item-on' : ''" @click="goStep(s.key, 'team-sim')">
+					<text class="steps-label" :class="s.key == 'team-sim' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 页头进度 ============ -->
+			<view class="row-between">
+				<view>
+					<text class="h1">数字人模拟组队讨论</text>
+					<text class="muted mt8">多 Agent 预演协作：主持人发起分工任务，数字人轮流发言</text>
+				</view>
+				<view>
+					<text class="sim-progress">已播放 {{ playIndex }} / {{ total }} 条</text>
+					<text class="t-xs">当前倍速 {{ speed }}x</text>
+				</view>
+			</view>
+			<view class="track">
+				<view class="track-fill" :style="progressStyle"></view>
+			</view>
+
+			<!-- ============ 主持人任务卡 ============ -->
+			<view class="card sim-task">
+				<view class="row-between">
+					<view class="badge badge-cyan"><text class="sim-badge-text">主持人 Agent 发起任务</text></view>
+					<text class="t-xs">{{ phase }}</text>
+				</view>
+				<text class="h3 mt12">{{ taskTitle }}</text>
+				<text class="t-md mt8">{{ taskText }}</text>
+				<view class="wrap mt8">
+					<view v-for="req in taskReqs" :key="req" class="chip item-gap">
+						<text class="sim-chip-text">{{ req }}</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 参与者数字人 ============ -->
+			<view class="wrap mt16">
+				<view
+					v-for="item in participants"
+					:key="item.id"
+					class="sim-agent"
+					:class="activeKey == (item.id == 'self' ? 'self' : item.name) ? 'sim-agent-on' : ''"
+				>
+					<view class="sim-agent-avatar" :style="'background-color:' + item.color">
+						<text class="sim-agent-avatar-text">{{ item.avatar }}</text>
+					</view>
+					<text class="sim-agent-name">{{ item.name }}</text>
+					<text class="t-xs">{{ item.id == 'self' ? '我' : item.role }}</text>
+				</view>
+			</view>
+
+			<!-- ============ 群聊对话（自动滚动） ============ -->
+			<scroll-view class="sim-list" :scroll-y="true" :scroll-into-view="scrollTo">
+				<view v-for="(msg, i) in shown" :key="msg.id" :id="'sim' + i" class="sim-row">
+					<!-- 系统 / 分析消息 -->
+					<view v-if="msg.type == 'system' || msg.type == 'analysis'" class="sim-system" :class="msg.type == 'analysis' ? 'sim-system-analysis' : ''">
+						<text class="sim-system-text">{{ msg.text }}</text>
+						<text v-if="msg.highlight != ''" class="sim-highlight">{{ msg.highlight }}</text>
+					</view>
+
+					<!-- 主持人与数字人发言 -->
+					<view v-else>
+						<view class="row">
+							<view class="sim-speaker-avatar" :style="'background-color:' + msg.color">
+								<text class="sim-agent-avatar-text">{{ msg.avatar }}</text>
+							</view>
+							<text class="sim-speaker-name">{{ msg.name }}</text>
+							<view v-if="msg.isSelf" class="sim-self-badge"><text class="sim-self-text">我</text></view>
+						</view>
+						<view class="sim-bubble" :class="msg.type == 'host' ? 'sim-bubble-host' : (msg.isSelf ? 'sim-bubble-self' : 'sim-bubble-agent')">
+							<text class="bubble-text">{{ msg.text }}</text>
+						</view>
+					</view>
+				</view>
+			</scroll-view>
+
+			<!-- ============ 协作结论（播放结束后展示） ============ -->
+			<view v-if="finished" class="card sim-result">
+				<text class="h3">本轮协作分析</text>
+				<text class="t-xs mt12">协作亮点</text>
+				<view v-for="item in highlights" :key="item" class="row mt8">
+					<text class="sim-dot">✓</text>
+					<text class="t-sm">{{ item }}</text>
+				</view>
+				<text class="t-xs mt12">潜在冲突</text>
+				<view v-for="item in conflicts" :key="item" class="row mt8">
+					<text class="sim-dot-warn">!</text>
+					<text class="t-sm">{{ item }}</text>
+				</view>
+				<text class="sim-conclusion">{{ conclusion }}</text>
+			</view>
+
+			<!-- ============ 控制条 ============ -->
+			<view class="card sim-control">
+				<view class="wrap">
+					<view class="sim-ctrl item-gap" @click="togglePause">
+						<text class="sim-ctrl-text">{{ playing && !paused ? '⏸ 暂停' : '▶ 继续播放' }}</text>
+					</view>
+					<view class="sim-ctrl item-gap" @click="cycleSpeed">
+						<text class="sim-ctrl-text">⚡ {{ speed }}x 倍速</text>
+					</view>
+					<view class="sim-ctrl item-gap" @click="replay">
+						<text class="sim-ctrl-text">↺ 重新播放</text>
+					</view>
+				</view>
+				<view class="btn btn-primary btn-block mt12" :class="{ 'btn-disabled': !finished }" @click="goResult">
+					<text class="label-dark">查看匹配结果</text>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 数字人模拟组队讨论页
+	 * 交互：自动播放多个数字人的轮流发言（mock 数据兜底自动滚动）
+	 *      支持暂停 / 倍速 / 重新播放，播完可查看匹配结果
+	 * 接口：【后端接口位置 3】GET /api/sim-team（见 common/api.uts 的 simTeam）
+	 */
+	import { STORAGE_MODE, STORAGE_DH_ID, STORAGE_DH_NAME, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+	import { simTeam } from '@/common/api.uts'
+	import { SimMessage, Participant } from '@/common/types.uts'
+
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const dhId = getStore(STORAGE_DH_ID, 'DH-LOCAL')
+	const dhName = getStore(STORAGE_DH_NAME, '我的数字人')
+
+	// 群聊数据
+	const messages = ref<SimMessage[]>([])
+	const participants = ref<Participant[]>([])
+	const taskTitle = ref('')
+	const taskText = ref('')
+	const taskReqs = ref<string[]>([])
+
+	// 播放状态
+	const playIndex = ref(0)
+	const playing = ref(false)
+	const paused = ref(false)
+	const speed = ref(1)
+	const finished = ref(false)
+	const activeKey = ref('')
+	const scrollTo = ref('')
+
+	// 定时器
+	let timer = 0
+	// 防止重复跳转
+	let jumped = false
+
+	// 协作结论（前端静态文案）
+	const highlights : string[] = ['时间节奏高度一致，集成窗口快速确定', '技能与角色分布互补，分工协商顺畅']
+	const conflicts : string[] = ['创意发散与范围控制之间存在轻微摩擦，已由协调角色化解']
+	const conclusion = '整体协作质量较高，可作为匹配度评估的主要依据。'
+
+	const total = computed(() : number => messages.value.length)
+
+	const progressPercent = computed(() : number => {
+		if (total.value == 0) {
+			return 0
+		}
+		return Math.round(playIndex.value * 100 / total.value)
+	})
+
+	// 进度条样式（在脚本里拼好字符串，避免模板中的类型转换问题）
+	const progressStyle = computed(() : string => {
+		return 'width:' + progressPercent.value.toString() + '%'
+	})
+
+	// 已播放的消息（自动滚动时按顺序渲染）
+	const shown = computed(() : SimMessage[] => {
+		return messages.value.slice(0, playIndex.value)
+	})
+
+	// 当前阶段
+	const phase = computed(() : string => {
+		if (messages.value.length == 0) {
+			return '准备中'
+		}
+		const idx = Math.min(playIndex.value, messages.value.length - 1)
+		const msg = messages.value[idx]
+		return msg.phase == '' ? '讨论中' : msg.phase
+	})
+
+	// 加载模拟群聊数据
+	async function loadSim() {
+		// ⬇⬇ 调用【后端接口位置 3】：GET /api/sim-team
+		const data = await simTeam(mode, dhId, dhName)
+		messages.value = data.messages
+		participants.value = data.participants
+		taskTitle.value = data.taskTitle
+		taskText.value = data.taskText
+		taskReqs.value = data.taskReqs
+		start()
+	}
+
+	// 开始自动播放
+	function start() {
+		playing.value = true
+		paused.value = false
+		scheduleNext()
+	}
+
+	// 逐条调度播放（mock 数据自带每条消息的延迟）
+	function scheduleNext() {
+		if (!playing.value || paused.value) {
+			return
+		}
+		if (playIndex.value >= messages.value.length) {
+			finishPlay()
+			return
+		}
+		const msg = messages.value[playIndex.value]
+		const delay = Math.max(280, Math.floor(msg.delay / speed.value))
+		timer = setTimeout(() => {
+			const cur = messages.value[playIndex.value]
+			playIndex.value = playIndex.value + 1
+			activeKey.value = cur.isSelf ? 'self' : (cur.type == 'host' ? '智汇' : cur.name)
+			scrollTo.value = 'sim' + (playIndex.value - 1).toString()
+			scheduleNext()
+		}, delay)
+	}
+
+	// 播放结束
+	function finishPlay() {
+		playing.value = false
+		paused.value = false
+		finished.value = true
+		activeKey.value = ''
+		clearTimer()
+		// 连贯体验：播放结束后停留片刻，自动进入匹配结果页（也可以手动点按钮）
+		timer = setTimeout(() => {
+			goResult()
+		}, 1500)
+	}
+
+	// 暂停 / 继续
+	function togglePause() {
+		if (!playing.value) {
+			if (finished.value) {
+				replay()
+				return
+			}
+			playing.value = true
+			paused.value = false
+			scheduleNext()
+			return
+		}
+		paused.value = !paused.value
+		if (paused.value) {
+			clearTimer()
+		} else {
+			scheduleNext()
+		}
+	}
+
+	// 切换倍速：1x → 2x → 4x → 1x
+	function cycleSpeed() {
+		if (speed.value == 1) {
+			speed.value = 2
+		} else if (speed.value == 2) {
+			speed.value = 4
+		} else {
+			speed.value = 1
+		}
+		if (playing.value && !paused.value) {
+			clearTimer()
+			scheduleNext()
+		}
+	}
+
+	// 重新播放
+	function replay() {
+		clearTimer()
+		jumped = false
+		playIndex.value = 0
+		finished.value = false
+		activeKey.value = ''
+		start()
+	}
+
+	function clearTimer() {
+		if (timer != 0) {
+			clearTimeout(timer)
+			timer = 0
+		}
+	}
+
+	// 查看匹配结果（需播放结束）
+	function goResult() {
+		if (jumped) {
+			return
+		}
+		if (!finished.value) {
+			uni.showToast({ title: '模拟群聊还没结束，先看完吧', icon: 'none' })
+			return
+		}
+		jumped = true
+		uni.navigateTo({
+			url: '/pages/result/result?mode=' + mode + '&dhId=' + dhId
+		})
+	}
+
+	// 页面加载时拉取模拟数据
+	loadSim()
+</script>
+
+<style>
+	/* ---------- 模拟组队页专属样式 ---------- */
+	.sim-progress { font-size: 14px; font-weight: bold; color: #eef4ff; }
+	.sim-task { border-color: rgba(34, 211, 238, 0.35); }
+	.sim-badge-text { font-size: 12px; color: #9fe9f6; }
+	.sim-chip-text { font-size: 12px; color: #c3d0e6; }
+
+	.sim-agent {
+		width: 78px;
+		padding: 10px 4px;
+		border-radius: 12px;
+		align-items: center;
+		margin-right: 10px;
+		margin-top: 8px;
+		background-color: rgba(255, 255, 255, 0.05);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.sim-agent-on {
+		background-color: rgba(34, 211, 238, 0.16);
+		border-color: rgba(34, 211, 238, 0.7);
+	}
+
+	.sim-agent-avatar {
+		width: 36px;
+		height: 36px;
+		border-radius: 12px;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.sim-agent-avatar-text { font-size: 15px; font-weight: bold; color: #04122b; }
+	.sim-agent-name { margin-top: 6px; font-size: 12px; color: #e6edfb; }
+
+	.sim-list {
+		height: 420px;
+		margin-top: 14px;
+		padding: 14px;
+		border-radius: 14px;
+		background-color: rgba(9, 14, 28, 0.9);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.sim-row { margin-top: 14px; }
+
+	.sim-system {
+		align-items: center;
+		padding: 10px 14px;
+		border-radius: 10px;
+		background-color: rgba(124, 138, 168, 0.14);
+	}
+
+	.sim-system-analysis {
+		background-color: rgba(245, 158, 11, 0.12);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(245, 158, 11, 0.35);
+	}
+
+	.sim-system-text { font-size: 13px; color: #c3d0e6; text-align: center; }
+	.sim-highlight { margin-top: 6px; font-size: 11px; color: #ffd9a8; }
+
+	.sim-speaker-avatar {
+		width: 28px;
+		height: 28px;
+		border-radius: 9px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 8px;
+	}
+
+	.sim-speaker-name { font-size: 13px; color: #a9b8d8; }
+
+	.sim-self-badge {
+		margin-left: 8px;
+		padding: 1px 8px;
+		border-radius: 999px;
+		background-color: #4be0f0;
+	}
+
+	.sim-self-text { font-size: 10px; color: #04122b; }
+
+	.sim-bubble {
+		margin-top: 8px;
+		padding: 12px 14px;
+		border-radius: 4px 14px 14px 14px;
+	}
+
+	.sim-bubble-host {
+		background-color: rgba(47, 123, 255, 0.14);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(47, 123, 255, 0.42);
+	}
+
+	.sim-bubble-self {
+		background-color: rgba(34, 211, 238, 0.14);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(34, 211, 238, 0.55);
+	}
+
+	.sim-bubble-agent {
+		background-color: rgba(255, 255, 255, 0.05);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+	}
+
+	.sim-result {
+		background-color: rgba(52, 211, 153, 0.08);
+		border-color: rgba(52, 211, 153, 0.35);
+	}
+
+	.sim-dot { color: #34d399; margin-right: 8px; font-size: 14px; }
+	.sim-dot-warn { color: #fbbf24; margin-right: 8px; font-size: 14px; }
+	.sim-conclusion { margin-top: 14px; font-size: 13px; line-height: 20px; color: #a7f3d0; }
+
+	.sim-control { padding: 14px; }
+
+	.sim-ctrl {
+		padding: 8px 14px;
+		border-radius: 10px;
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.16);
+	}
+
+	.sim-ctrl-text { font-size: 13px; color: #dbe5f7; }
+</style>

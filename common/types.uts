@@ -1,0 +1,204 @@
+/**
+ * 全局类型定义（uni-app x / UTS 需要显式类型）
+ * 后端组员返回数据时请保持字段名一致，便于前端直接复用。
+ */
+
+// 选项
+export type OptionItem = {
+	value : number
+	label : string
+}
+
+// 量表题目
+export type Question = {
+	id : string
+	section : string        // 所属分区名称
+	type : string           // scale：五级量表；choice：单选
+	text : string           // 题干
+	dim : string            // 大五维度：E/A/C/N/O/V
+	reverse : boolean       // 是否反向计分
+	field : string          // 组队偏好字段：role/time/conflict/skill/redline/comm
+	options : OptionItem[]
+}
+
+// 对话采集轮次
+export type DialogRound = {
+	scene : string
+	ai : string
+	sample : string
+}
+
+// 模拟群聊消息
+export type SimMessage = {
+	id : string
+	type : string          // host 主持人 / agent 数字人 / system 系统 / analysis 系统分析
+	name : string
+	avatar : string
+	color : string
+	phase : string
+	text : string
+	delay : number
+	highlight : string
+	isSelf : boolean
+}
+
+// 参与模拟组队的数字人
+export type Participant = {
+	id : string
+	name : string
+	avatar : string
+	color : string
+	role : string
+}
+
+// 模拟群聊整体数据（/api/sim-team 返回）
+export type TeamSimData = {
+	taskTitle : string
+	taskText : string
+	taskReqs : string[]
+	participants : Participant[]
+	messages : SimMessage[]
+}
+
+// 提交量表返回（/api/save-scale 返回）
+export type ScaleResult = {
+	dhId : string
+	dhName : string
+	mode : string
+	createdAt : string
+}
+
+// 单个维度的评分
+export type DimScore = {
+	key : string
+	name : string
+	weight : number
+	score : number
+	note : string
+}
+
+// 对话回放片段
+export type ReplayLine = {
+	isMe : boolean
+	name : string
+	avatar : string
+	color : string
+	text : string
+}
+
+// 推荐队友
+export type Candidate = {
+	id : string
+	name : string
+	avatar : string
+	color : string
+	role : string
+	title : string
+	score : number
+	rank : number
+	quote : string
+	sharedTime : string
+	dims : DimScore[]
+	highlights : string[]
+	risks : string[]
+	replay : ReplayLine[]
+}
+
+// 推荐组队方案
+export type TeamPlan = {
+	title : string
+	combo : string[]
+	reasons : string[]
+	risk : string
+}
+
+// 匹配结果整体数据（/api/get-result 返回）
+export type MatchResult = {
+	myName : string
+	candidateCount : number
+	analyzedMessages : number
+	teamPlan : TeamPlan
+	analysisReport : string
+	candidates : Candidate[]
+}
+
+// 量表答案（提交给后端的单题答案）
+export type AnswerPayload = {
+	id : string
+	section : string
+	type : string
+	dim : string
+	reverse : boolean
+	field : string
+	value : number
+}
+
+// 对话采集记录（提交给后端的单条消息）
+export type DialogRecord = {
+	role : string      // user 用户 / ai 数字人
+	text : string
+}
+
+// 对话记录保存结果（/api/save-dialog 返回）
+export type SaveDialogResult = {
+	saved : boolean
+	count : number
+}
+
+// 数字人档案：大五人格单项
+export type BigFiveItem = {
+	name : string
+	score : number
+	desc : string
+}
+
+// 数字人档案：技能单项
+export type SkillItem = {
+	name : string
+	level : number
+}
+
+// 数字人档案（8 字段画像，前端本地生成，后端可返回同结构覆盖）
+export type DigitalProfile = {
+	dhId : string
+	dhName : string
+	avatar : string
+	modeName : string
+	completeness : number
+	oneLine : string
+	tags : string[]
+	bigFive : BigFiveItem[]
+	role : string
+	roleDesc : string
+	commStyle : string
+	commPace : string
+	commConflict : string
+	weekdays : string
+	weekend : string
+	hours : string
+	skills : SkillItem[]
+	redlines : string[]
+	speechSamples : string[]
+	memoryAnchors : string[]
+}
+
+// 竞赛活动（组队活动列表）
+export type ActivityItem = {
+	id : string
+	name : string
+	organizer : string
+	level : string
+	teamSize : string
+	deadline : string
+	duration : string
+	status : string
+	desc : string
+	reward : string
+	needRoles : string[]
+}
+
+// 技能标签分组（技能选择页）
+export type SkillGroup = {
+	group : string
+	items : string[]
+}

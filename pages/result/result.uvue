@@ -1,0 +1,361 @@
+<template>
+	<view class="page">
+		<!-- 背景光晕装饰 -->
+		<view class="glow glow-a"></view>
+		<view class="glow glow-b"></view>
+		<!-- 背景网格（仅 H5/WEB 生效） -->
+		<view class="grid-h"></view>
+		<view class="grid-v"></view>
+		<!-- 顶部导航条（与网页版一致：品牌 + 步骤 + 重置） -->
+		<view class="topbar">
+			<view class="topbar-brand">
+				<view class="topbar-dot"></view>
+				<text class="topbar-name">孪生数字人组队系统</text>
+				<text class="topbar-sub">H5 Demo</text>
+			</view>
+			<view class="steps">
+				<view v-for="s in STEP_LIST" :key="s.key" class="steps-item" :class="s.key == 'result' ? 'steps-item-on' : ''" @click="goStep(s.key, 'result')">
+					<text class="steps-label" :class="s.key == 'result' ? 'steps-label-on' : ''">{{ s.label }}</text>
+				</view>
+			</view>
+			<view class="topbar-reset" @click="resetAll">
+				<text class="topbar-reset-text">重置演示</text>
+			</view>
+		</view>
+		<view class="container">
+			<!-- ============ 页头 ============ -->
+			<text class="h1">匹配结果</text>
+			<text class="muted mt8">数字人模拟协作分析完成，以下为推荐队友与匹配评分</text>
+			<view class="wrap mt12">
+				<view class="chip item-gap"><text class="res-chip-text">分析 {{ candidateCount }} 个数字人</text></view>
+				<view class="chip item-gap"><text class="res-chip-text">{{ analyzedMessages }} 条模拟对话</text></view>
+				<view class="chip item-gap"><text class="res-chip-text">我的数字人：{{ myName }}</text></view>
+			</view>
+
+			<!-- ============ 推荐组队方案 ============ -->
+			<view class="card res-plan">
+				<view class="row-between">
+					<text class="h2">{{ plan.title }}</text>
+					<view class="badge badge-cyan"><text class="res-badge-text">系统建议</text></view>
+				</view>
+				<view class="wrap mt12">
+					<view v-for="(name, i) in plan.combo" :key="name" class="res-combo item-gap">
+						<text class="res-combo-text">{{ name }}{{ i == 0 ? '（你）' : '' }}</text>
+					</view>
+				</view>
+				<view v-for="reason in plan.reasons" :key="reason" class="row mt8">
+					<text class="res-dot">✓</text>
+					<text class="t-sm res-reason">{{ reason }}</text>
+				</view>
+				<view class="res-risk mt12">
+					<text class="res-risk-label">风险提示</text>
+					<text class="res-risk-text">{{ plan.risk }}</text>
+				</view>
+			</view>
+
+			<!-- ============ 分析报告 ============ -->
+			<view class="card">
+				<text class="h3">分析报告</text>
+				<text class="t-md res-report">{{ report }}</text>
+			</view>
+
+			<!-- ============ TopN 合拍队友 ============ -->
+			<text class="res-section">TopN 合拍队友</text>
+
+			<view v-for="item in candidates" :key="item.id" class="card res-card" :class="item.rank == 1 ? 'res-card-top' : ''">
+				<view class="row-between">
+					<view class="row">
+						<view class="res-rank" :class="item.rank == 1 ? 'res-rank-first' : ''">
+							<text class="res-rank-text">第 {{ item.rank }} 名</text>
+						</view>
+						<view class="res-avatar" :style="'background-color:' + item.color">
+							<text class="res-avatar-text">{{ item.avatar }}</text>
+						</view>
+						<view>
+							<view class="row">
+								<text class="res-name">{{ item.name }}</text>
+								<view class="badge badge-violet mt8"><text class="res-title-text">{{ item.title }}</text></view>
+							</view>
+							<text class="t-xs mt8">{{ item.role }} · {{ item.sharedTime }}</text>
+						</view>
+					</view>
+					<view class="res-score-box">
+						<text class="res-score">{{ item.score }}</text>
+						<text class="t-xs">综合匹配度</text>
+					</view>
+				</view>
+
+				<view class="res-quote">
+					<text class="res-quote-text">“{{ item.quote }}”</text>
+				</view>
+
+				<!-- 五维评分 -->
+				<view v-for="dim in item.dims" :key="dim.key">
+					<view class="dim-top">
+						<text class="res-dim-name">{{ dim.name }}</text>
+						<text class="res-dim-score">{{ dim.score }}</text>
+					</view>
+					<view class="dim-track">
+						<view class="dim-fill" :style="barStyle(dim.score)"></view>
+					</view>
+					<text class="t-xs mt8">{{ dim.note }}</text>
+				</view>
+
+				<!-- 优势 / 风险 -->
+				<view class="wrap mt12">
+					<view v-for="tag in item.highlights" :key="tag" class="res-good item-gap">
+						<text class="res-good-text">优势 · {{ tag }}</text>
+					</view>
+				</view>
+				<view class="wrap mt8">
+					<view v-for="tag in item.risks" :key="tag" class="res-warn item-gap">
+						<text class="res-warn-text">注意 · {{ tag }}</text>
+					</view>
+				</view>
+
+				<!-- 对话回放 -->
+				<view class="btn btn-ghost btn-block mt12" @click="toggleReplay(item.id)">
+					<text class="label-light-sm">{{ openId == item.id ? '收起对话回放' : '查看对话回放' }}</text>
+				</view>
+
+				<view v-if="openId == item.id" class="res-replay">
+					<view v-for="(line, li) in item.replay" :key="li" class="res-replay-row" :class="line.isMe ? 'res-replay-me' : ''">
+						<view class="res-replay-avatar" :style="'background-color:' + line.color">
+							<text class="res-avatar-text">{{ line.avatar }}</text>
+						</view>
+						<view class="res-replay-body">
+							<text class="t-xs">{{ line.isMe ? '我（' + line.name + '）' : line.name }}</text>
+							<view class="res-replay-bubble">
+								<text class="t-sm">{{ line.text }}</text>
+							</view>
+						</view>
+					</view>
+				</view>
+			</view>
+
+			<!-- ============ 底部操作 ============ -->
+			<view class="row mt24">
+				<view class="btn btn-ghost res-action" @click="backSim">
+					<text class="label-light">重新模拟一轮</text>
+				</view>
+				<view class="btn btn-primary res-action" @click="goHome">
+					<text class="label-dark">返回首页</text>
+				</view>
+			</view>
+
+			<view class="foot-note">
+				<text class="t-xs">匹配度基于数字人模拟对话分析得出；你的互评反馈可用于校准后续推荐。</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	/**
+	 * 匹配结果页：推荐队友 + 五维评分 + 分析报告 + 对话回放
+	 * 接口：【后端接口位置 4】GET /api/get-result（见 common/api.uts 的 getResult）
+	 */
+	import { STORAGE_MODE, STORAGE_DH_ID, STORAGE_DH_NAME, getStore } from '@/common/storage.uts'
+	import { STEP_LIST, goStep } from '@/common/steps.uts'
+	import { resetAll } from '@/common/steps.uts'
+	import { getResult } from '@/common/api.uts'
+	import { Candidate, TeamPlan } from '@/common/types.uts'
+
+	const mode = getStore(STORAGE_MODE, 'quick')
+	const dhId = getStore(STORAGE_DH_ID, 'DH-LOCAL')
+	const dhName = getStore(STORAGE_DH_NAME, '我的数字人')
+
+	// 结果数据
+	const candidates = ref<Candidate[]>([])
+	const plan = ref<TeamPlan>({ title: '', combo: [], reasons: [], risk: '' })
+	const report = ref('')
+	const myName = ref(dhName)
+	const candidateCount = ref(0)
+	const analyzedMessages = ref(0)
+
+	// 当前展开的对话回放（候选人 id）
+	const openId = ref('')
+
+	// 加载匹配结果
+	async function loadResult() {
+		// ⬇⬇ 调用【后端接口位置 4】：GET /api/get-result
+		const data = await getResult(mode, dhId, dhName)
+		candidates.value = data.candidates
+		plan.value = data.teamPlan
+		report.value = data.analysisReport
+		myName.value = data.myName
+		candidateCount.value = data.candidateCount
+		analyzedMessages.value = data.analyzedMessages
+	}
+
+	// 展开 / 收起对话回放
+	function toggleReplay(id : string) {
+		openId.value = openId.value == id ? '' : id
+	}
+
+	// 评分条样式（在脚本里拼好字符串，避免模板中的类型转换问题）
+	function barStyle(score : number) : string {
+		return 'width:' + score.toString() + '%'
+	}
+
+	// 重新模拟一轮
+	function backSim() {
+		uni.redirectTo({
+			url: '/pages/team-sim/team-sim?mode=' + mode + '&dhId=' + dhId
+		})
+	}
+
+	// 返回首页
+	function goHome() {
+		uni.reLaunch({ url: '/pages/index/index' })
+	}
+
+	loadResult()
+</script>
+
+<style>
+	/* ---------- 匹配结果页专属样式 ---------- */
+	.res-chip-text { font-size: 12px; color: #c3d0e6; }
+	.res-badge-text { font-size: 12px; color: #9fe9f6; }
+
+	.res-plan {
+		background-color: rgba(52, 211, 153, 0.08);
+		border-color: rgba(52, 211, 153, 0.35);
+	}
+
+	.res-combo {
+		padding: 8px 14px;
+		border-radius: 10px;
+		background-image: linear-gradient(90deg, #34d399, #22d3ee);
+	}
+
+	.res-combo-text { font-size: 13px; font-weight: bold; color: #04122b; }
+	.res-dot { color: #34d399; margin-right: 8px; font-size: 14px; }
+	.res-reason { flex: 1; line-height: 20px; }
+
+	.res-risk {
+		padding: 12px;
+		border-radius: 10px;
+		background-color: rgba(251, 191, 36, 0.1);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(251, 191, 36, 0.3);
+	}
+
+	.res-risk-label { font-size: 12px; color: #ffd9a8; }
+	.res-risk-text { margin-top: 4px; font-size: 13px; line-height: 20px; color: #e2cf9a; }
+	.res-report { margin-top: 10px; line-height: 24px; }
+
+	.res-section {
+		margin-top: 26px;
+		font-size: 16px;
+		font-weight: bold;
+		color: #dfe8fb;
+	}
+
+	.res-card { padding: 18px; }
+	.res-card-top { border-color: rgba(52, 211, 153, 0.5); }
+
+	.res-rank {
+		padding: 4px 10px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.08);
+		margin-right: 10px;
+	}
+
+	.res-rank-first { background-image: linear-gradient(90deg, #34d399, #22d3ee); }
+	.res-rank-text { font-size: 12px; font-weight: bold; color: #04122b; }
+
+	.res-avatar {
+		width: 44px;
+		height: 44px;
+		border-radius: 14px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 12px;
+	}
+
+	.res-avatar-text { font-size: 17px; font-weight: bold; color: #04122b; }
+	.res-name { font-size: 19px; font-weight: bold; color: #f2f7ff; margin-right: 8px; }
+	.res-title-text { font-size: 12px; color: #d9cfff; }
+
+	.res-score-box { align-items: center; }
+	.res-score { font-size: 28px; font-weight: bold; color: #4be0f0; }
+
+	.res-quote {
+		margin-top: 14px;
+		padding: 12px;
+		border-radius: 10px;
+		background-color: rgba(47, 123, 255, 0.1);
+		border-left-width: 3px;
+		border-left-style: solid;
+		border-left-color: #2f7bff;
+	}
+
+	.res-quote-text { font-size: 14px; line-height: 22px; color: #cfd9ee; }
+	.res-dim-name { font-size: 14px; font-weight: bold; color: #e6edfb; }
+	.res-dim-score { font-size: 14px; font-weight: bold; color: #4be0f0; }
+
+	.res-good {
+		padding: 6px 10px;
+		border-radius: 8px;
+		background-color: rgba(52, 211, 153, 0.14);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(52, 211, 153, 0.42);
+	}
+
+	.res-good-text { font-size: 12px; color: #a7f3d0; }
+
+	.res-warn {
+		padding: 6px 10px;
+		border-radius: 8px;
+		background-color: rgba(251, 191, 36, 0.12);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(251, 191, 36, 0.38);
+	}
+
+	.res-warn-text { font-size: 12px; color: #ffd9a8; }
+
+	.res-replay {
+		margin-top: 12px;
+		padding: 12px;
+		border-radius: 12px;
+		background-color: rgba(9, 14, 28, 0.9);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.res-replay-row {
+		flex-direction: row;
+		align-items: flex-start;
+		margin-top: 12px;
+	}
+
+	.res-replay-me { flex-direction: row-reverse; }
+
+	.res-replay-avatar {
+		width: 30px;
+		height: 30px;
+		border-radius: 10px;
+		align-items: center;
+		justify-content: center;
+		margin-right: 10px;
+	}
+
+	.res-replay-body { flex: 1; }
+
+	.res-replay-bubble {
+		margin-top: 6px;
+		padding: 10px 12px;
+		border-radius: 10px;
+		background-color: rgba(255, 255, 255, 0.06);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.1);
+	}
+
+	.res-action { flex: 1; margin-right: 10px; }
+</style>

@@ -1,0 +1,60 @@
+/**
+ * ============================================================
+ * 统一请求封装（uni.request）
+ * ------------------------------------------------------------
+ * 前端所有与后端的通信都必须走这里，便于统一处理：
+ *   基础地址 BASE_URL（在 common/config.uts 配置，默认 "/api"）
+ *   超时时间、请求头、错误码、后续可能新增的 token 鉴权
+ * 后端组员只需按接口文档实现 4 个接口，前端无需改动调用方式。
+ * ============================================================
+ */
+import { BASE_URL } from './config.uts'
+
+// 请求超时时间（毫秒）
+const TIMEOUT = 10000
+
+/**
+ * GET 请求
+ * @param path  接口路径，如 '/sim-team'
+ * @param query 查询串，如 'mode=quick&dhId=DH-001'（不需要传则传空字符串）
+ */
+export function requestGet(path : string, query : string) : Promise<any> {
+	const url = query == '' ? BASE_URL + path : BASE_URL + path + '?' + query
+	return new Promise<any>((resolve, reject) => {
+		uni.request({
+			url: url,
+			method: 'GET',
+			timeout: TIMEOUT,
+			success: (res) => {
+				// 【后端组员注意】这里默认后端返回的就是业务数据本体；
+				// 如果后端包了一层 { code, message, data }，请在 common/config.uts 打开下面的解包逻辑
+				resolve(res.data)
+			},
+			fail: (err) => {
+				reject(err)
+			}
+		})
+	})
+}
+
+/**
+ * POST 请求
+ * @param path 接口路径，如 '/save-scale'
+ * @param data 请求体（对象或数组，uni.request 会自动转成 JSON）
+ */
+export function requestPost(path : string, data : any) : Promise<any> {
+	return new Promise<any>((resolve, reject) => {
+		uni.request({
+			url: BASE_URL + path,
+			method: 'POST',
+			data: data,
+			timeout: TIMEOUT,
+			success: (res) => {
+				resolve(res.data)
+			},
+			fail: (err) => {
+				reject(err)
+			}
+		})
+	})
+}
